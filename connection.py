@@ -4,16 +4,31 @@ import websockets
 from PyQt5.QtCore import QThread, pyqtSignal
 
 
+# WebSocket连接管理模块
+# 负责建立和维护与EMS服务器的WebSocket连接，处理数据收发
+
 class WebSocketWorker(QThread):
+    """
+    WebSocket通信工作线程
+    功能：
+    - 使用QThread实现后台WebSocket通信
+    - 处理连接建立、消息收发、断线重连
+    - 通过信号机制与主线程交互
+    属性：
+    - message_signal: 数据消息信号
+    - log_signal: 日志信号
+    - token: 认证令牌
+    """
     message_signal = pyqtSignal(dict)  # 传输数据消息
     log_signal = pyqtSignal(str)  # 输出日志
 
     def __init__(self, token):
+        """初始化工作线程"""
         super().__init__()
-        self.is_running = True
-        self.websocket = None
-        self.token = token
-        self.need_refresh = False
+        self.is_running = True  # 线程运行标志
+        self.websocket = None  # WebSocket连接对象
+        self.token = token  # 认证令牌
+        self.need_refresh = False  # 刷新标志
 
     def run(self):
         asyncio.run(self.connect_websocket())

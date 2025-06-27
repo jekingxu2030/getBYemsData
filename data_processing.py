@@ -3,7 +3,18 @@ from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtCore import Qt
 
 
+# 数据处理工具模块
+# 包含设备树更新、实时数据处理、数据解析等工具函数
+
 def update_device_tree(tree_widget, data, log):
+    """
+    更新设备树控件
+    参数：
+    - tree_widget: QTreeWidget 设备树控件
+    - data: dict 菜单数据
+    - log: function 日志记录函数
+    返回值：dict 设备信息映射表
+    """
     tree_widget.clear()
     device_info = {}
     menu_data = data.get("data", {})
