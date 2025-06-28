@@ -4,8 +4,10 @@ from math import e
 
 class ChargeDischargeController:
     def __init__(self,log_callback):
+        # 初始化is_charging和is_discharging为False
         self.is_charging = False
         self.is_discharging = False
+        # 将log_callback赋值给self.log_callback
         self.log_callback = log_callback
 
     def log(self, message):

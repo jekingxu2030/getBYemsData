@@ -1035,7 +1035,9 @@ class WebSocketWorker(QThread):
                 # self.refresh_btn.setStyleSheet("color: darkgray;")  # 禁用状态样式
                 await asyncio.sleep(3)  # 等待3秒后重试
 
+    # 定义run方法
     def run(self):
+        # 使用asyncio.run方法运行connect_websocket方法
         asyncio.run(self.connect_websocket())
      
     def send_cmd_subscription(self, cmd_id, ref_fid, ref_rid, value):

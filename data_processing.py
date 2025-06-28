@@ -3,17 +3,57 @@ from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtCore import Qt
 
 
-# 数据处理工具模块
-# 包含设备树更新、实时数据处理、数据解析等工具函数
+"""
+数据处理工具模块
+================
+
+本模块提供与EMS系统数据展示相关的各种处理功能，包括：
+1. 设备树结构更新与维护
+2. 实时数据解析与展示
+3. 数据项层级关系处理
+
+主要功能：
+- update_device_tree: 构建设备树形结构
+- get_item_level: 获取树形项层级
+- get_rtv_ids_for_item: 提取实时数据ID
+- update_data_list_by_ids: 按ID更新数据列表
+
+依赖：
+- PyQt5.QtWidgets
+- PyQt5.QtGui
+- PyQt5.QtCore
+"""
 
 def update_device_tree(tree_widget, data, log):
     """
     更新设备树控件
+    
+    功能：
+    - 根据传入的菜单数据构建完整的设备树结构
+    - 生成设备信息映射表用于后续数据查询
+    
     参数：
-    - tree_widget: QTreeWidget 设备树控件
-    - data: dict 菜单数据
-    - log: function 日志记录函数
-    返回值：dict 设备信息映射表
+    - tree_widget: QTreeWidget 设备树控件对象
+    - data: dict 菜单数据，格式为：
+        {
+            "data": {
+                "设备类型1": [设备1信息, 设备2信息...],
+                "设备类型2": [...]
+            }
+        }
+    - log: function 日志记录回调函数
+    
+    返回值：
+    - dict: 设备信息映射表，结构为：
+        {
+            "数据项ID": {
+                "name": "中文名称",
+                "eng_name": "英文名称",
+                "device_type": "设备类型",
+                "device_name": "设备名称",
+                "table_name": "表名"
+            }
+        }
     """
     tree_widget.clear()
     device_info = {}
@@ -51,6 +91,15 @@ def update_device_tree(tree_widget, data, log):
 
 
 def get_item_level(item):
+    """
+    获取树形项的层级深度
+    
+    参数：
+    - item: QTreeWidgetItem 树形项对象
+    
+    返回值：
+    - int: 层级深度(0表示顶级项，1表示二级项，以此类推)
+    """
     level = 0
     while item.parent():
         item = item.parent()
@@ -59,6 +108,23 @@ def get_item_level(item):
 
 
 def get_rtv_ids_for_item(item, level, tree_widget, log):
+    """
+    根据树形项获取关联的实时数据ID列表
+    
+    参数：
+    - item: QTreeWidgetItem 当前选中的树形项
+    - level: int 当前项的层级(来自get_item_level)
+    - tree_widget: QTreeWidget 树形控件对象
+    - log: function 日志记录回调函数
+    
+    返回值：
+    - list: 实时数据ID列表
+    
+    处理逻辑：
+    - 层级0(顶级项): 获取该项下所有子设备的所有数据项ID
+    - 层级1(设备项): 获取该设备下所有数据项ID
+    - 层级2(数据项): 直接获取该项ID
+    """
     ids = []
     try:
         if level == 0:
@@ -83,6 +149,21 @@ def get_rtv_ids_for_item(item, level, tree_widget, log):
 
 
 def update_data_list_by_ids(data_list, rtv_ids, device_info, rtv_data, log):
+    """
+    根据ID列表更新数据显示列表
+    
+    参数：
+    - data_list: QListWidget 数据展示列表控件
+    - rtv_ids: list 实时数据ID列表
+    - device_info: dict 设备信息映射表(来自update_device_tree)
+    - rtv_data: dict 实时数据值，格式为{"ID": "值"}
+    - log: function 日志记录回调函数
+    
+    功能：
+    - 按设备类型分组显示数据
+    - 为不同类型数据设置不同背景色
+    - 格式化显示数据项ID、名称和当前值
+    """
     data_list.clear()
     grouped = {"d_bms": [], "d_pcs": [], "d_grid": [], "d_air_condition": []}
     colors = {
