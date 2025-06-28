@@ -7,3 +7,4 @@ PyQtWebEngine==5.15.6
 webdriver_manager==4.0.1
 websockets==12.0
 aiohttp==3.9.1
+pymysql==1.1.0

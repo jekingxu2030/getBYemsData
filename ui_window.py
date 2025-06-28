@@ -1,4 +1,3 @@
-
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QTextEdit, QTreeWidget, QTreeWidgetItem, QListWidget, QListWidgetItem,
@@ -15,6 +14,7 @@ from data_processing import (
     update_data_list_by_ids
 )
 from datetime import datetime
+from data_processing import DataProcessor
 
 
 class WebSocketClient(QMainWindow):
@@ -40,6 +40,10 @@ class WebSocketClient(QMainWindow):
         self.update_timer.timeout.connect(self.update_display)
         # 启动定时器，每隔3秒触发一次timeout信号
         self.update_timer.start(3000)
+
+        # 数据处理模块消息传递 - 只保留这一处初始化
+        self.data_processor = DataProcessor()
+        self.data_processor.db_log_signal.connect(self.log)
 
         self.setWindowIcon(QIcon("./img/ems.png"))
         self.initUI()
@@ -96,7 +100,10 @@ class WebSocketClient(QMainWindow):
             return row_widget
 
         self.token_input = QLineEdit()
-        self.token_input.setText("请输入最新token值")
+        self.token_input.setText(
+            "3d22c9d902d186e73c45998bd25c591a4d92ec0eb50951acc7878171a92ac09295d3540652fdcf0f44b828d9475e81bca5677687f2d9421d06632bd6cee25c81de3fa112ee3100ef84230ccf7b3824f3"
+            # "63f0efd89ab8b6ab850b71ea5ec30c9b89af7999fee2592ca5a30ca2f098f684ac720bef95d7b7332b7031be375548da233dfc0e1b07187101b3cf38d658ba99d25d20b07e60fb5a7ea90b9c52cb5faa"
+        )
         token_layout = QHBoxLayout()
         token_label = QLabel("WebSocket Token:")
         token_label.setStyleSheet("color: #2196F3; font-weight: bold;")
@@ -207,6 +214,10 @@ class WebSocketClient(QMainWindow):
         self.data_list.setStyleSheet("QListWidget { font-size: 14px; background-color: #f0f0f0; border-radius: 5px; }")
         main_layout.addWidget(self.data_list)
 
+        # 初始化数据处理模块
+        # self.data_processor = DataProcessor()
+        # self.data_processor.db_log_signal.connect(self.log)
+
     def log(self, message):
         """
         日志记录方法
@@ -230,7 +241,7 @@ class WebSocketClient(QMainWindow):
         # 禁用连接按钮
         self.connect_btn.setEnabled(False)
         self.disconnect_btn.setEnabled(True)
-        # self.refresh_btn.setEnabled(True)
+        self.refresh_btn.setEnabled(True)
         self.update_timer.start(1000)
         self.log("WebSocket已开始连接")
         self.log("数据更新已开启")
