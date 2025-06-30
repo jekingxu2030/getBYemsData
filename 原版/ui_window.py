@@ -87,19 +87,7 @@ class WebSocketClient(QMainWindow):
             # 设置输入框的宽度
             input_field.setFixedWidth(150)
             # 设置输入框的样式
-            input_field.setStyleSheet("""
-                QLineEdit {
-                    background-color: rgba(255, 255, 255, 0.9);
-                    border: 1px solid #ccc;
-                    border-radius: 3px;
-                    padding: 3px;
-                    color: #2196F3;
-                    margin: 0;
-                }
-                QLineEdit:focus {
-                    border: 1px solid #2196F3;
-                }
-            """)
+            input_field.setStyleSheet("QLineEdit { background-color:rgba(255, 255, 255, 0.9); border: 1px solid #ccc; border-radius: 3px; padding: 3px; color: #2196F3; }")
             # 创建一个水平布局
             row = QHBoxLayout()
             # 将标签和输入框添加到水平布局中
@@ -133,22 +121,6 @@ class WebSocketClient(QMainWindow):
         self.discharging_time_input_end = QLineEdit()
         self.charging_soc_input = QLineEdit()
         self.discharging_soc_input = QLineEdit()
-        self.discharging_soc_input.setStyleSheet("""
-            QLineEdit {
-                padding: 1px;
-                margin: 0;
-                border: 1px solid #ccc;
-                border-radius: 2px;
-                min-height: 20px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #1e90ff;
-            }
-        """)
-        # 新增间隔时间输入框
-        self.interval_input = QLineEdit()
-        self.interval_input.setValidator(QIntValidator(1, 3600))  # 1秒到1小时
-        self.interval_input.setText("5")  # 默认5秒
 
         for box in [self.charging_time_input_start, self.charging_time_input_end,
                     self.discharging_time_input_start, self.discharging_time_input_end]:
@@ -184,8 +156,6 @@ class WebSocketClient(QMainWindow):
                                                   QLabel("放电结束时间(HH):"), self.discharging_time_input_end))
         settings_layout.addWidget(double_input_row(QLabel("充电SOC上限(%):"), self.charging_soc_input,
                                                   QLabel("放电SOC下限(%):"), self.discharging_soc_input))
-        # 添加间隔时间输入框
-        settings_layout.addWidget(styled_input("请求间隔时间(秒):", self.interval_input))
 
         left_layout.addWidget(settings_panel)
 
