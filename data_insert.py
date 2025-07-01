@@ -33,11 +33,11 @@ def save_realtime_data(data: Dict[str, Any]) -> bool:
     """
     对外暴露的写库函数。返回 True/False 代表写入成功与否。
     """
-    print("insert收到完整 JSON ↓")
+    # print("insert收到完整JSON ↓")
     # print(json.dumps(data, indent=2, ensure_ascii=False))
-    print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
+    # print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
     raw = json.dumps(data, ensure_ascii=False)                      # 不缩进
-    print("len(json.dumps) =", len(raw))                            # 序列化后长度
+    # print("len(json.dumps) =", len(raw))                            # 序列化后长度
     print("尾 200 字:", raw[-200:])    
     if not data:
         return False

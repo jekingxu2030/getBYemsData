@@ -1,6 +1,3 @@
-
-
-
 # ======================================
 # connection.py  — WebSocket 后台通信线程（修正版）
 # --------------------------------------
@@ -75,6 +72,7 @@ class WebSocketWorker(QThread):
 
                     # 首次请求 menu主动发送
                     await ws.send(json.dumps({"func": "menu"}))
+                    print(f"[DEBUG] 已发送 menu 请求: {json.dumps({'func': 'menu'})}")
                     self.log_signal.emit("[WS] 已发送 menu 请求")
 
                     async for msg in ws:  # 自动合并分片
@@ -102,51 +100,63 @@ class WebSocketWorker(QThread):
         # 2) 解析 JSON
         try:
             data = json.loads(msg)
+            print(f"[DEBUG] 首次请求Menu请求返回: {json.dumps(data, ensure_ascii=False)[:150]}")
+            self.log_signal.emit(f"收到首次menu请求返回数据: {json.dumps(data, ensure_ascii=False)[:150]}")
         except json.JSONDecodeError as err:
             self.log_signal.emit(f"[WS] JSON 解析失败: {err}")
             return
 
         # print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
         raw = json.dumps(data, ensure_ascii=False)                      # 不缩进
-        print("len(json.dumps) =", len(raw))                            # 序列化后长度
+        print("len(json.dumps) =", len(raw))          
+        # 序列化后长度
         # print("尾 200 字:", raw[-200:])                                 # 看最后 200 个字符
 
         # 3) 写入数据库（使用统一封装函数，直接传 dict）
         ok = save_realtime_data(data)
         self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
 
-        # 4) 广播给 UI
+        # 4) 广播给 UI #不管是啥数据，ui层自己分类，本模块也自己分类，用于获取和更新id清单
         self.message_signal.emit(data)
 
         func = data.get("func")
         if func == "menu":
-              # -------- menu 逻辑：取 rtv‑id，订阅实时值 --------
-              rtv_ids = [
+            # -------- menu 逻辑：取 rtv‑id，订阅实时值 --------
+            rtv_ids = [
                   r["id"]
                   for devs in data.get("data", {}).values()
                   for dev in devs
                   for r in dev.get("rtvList", [])
               ]
-              sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
-              await self.websocket.send(json.dumps(sub_cmd))
+            print(f"[DEBUG] 获取到的rtv_ids: {rtv_ids[:50]}")
+            sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
+            await self.websocket.send(json.dumps(sub_cmd))
+            print(f"[DEBUG] 首次RTV请求已发送: {json.dumps(sub_cmd)[:150]}")
+            self.log_signal.emit(f"[WS]已发送 rtv 订阅")
+            self._start_rtv_timer(rtv_ids)
 
-              dev_cnt = sum(len(devs) for devs in data["data"].values())
-              self.log_signal.emit(
+            dev_cnt = sum(len(devs) for devs in data["data"].values())
+            self.log_signal.emit(
                   f"[WS] 收到menu订阅：设备 {dev_cnt} 个，字段 {len(rtv_ids)} 项 → 已发送 rtv 订阅"
               )
 
-没有        elif func == "rtv":
-            # -------- rtv 逻辑：这里只做提示，数据已在上层处理 --------
-            rtv_list = data.get("data", [])           # 默认空列表
+        elif func == "rtv":
+            print("[DEBUG] RTV请求已返回：")
+            rtv_list = data.get("rtvList", [])
+            print(f"[DEBUG] RTV数据: {json.dumps(rtv_list[:30], ensure_ascii=False)}")
             field_cnt = len(rtv_list)
-            print(f"[DEBUG] RTV数据: {rtv_list}")  # 打印rtv数据
+            self.log_signal.emit(f"[WS] 收到 rtv订阅数据包")
             self.log_signal.emit(f"[WS] 收到 rtv订阅数据包，字段数 {field_cnt}")
 
+            # 添加调试日志确认rtv请求已发送
+            print(f"[DEBUG] RTV请求已处理，数据长度: {len(rtv_list)}")
+            print(f"[DEBUG] RTV请求返回数据示例: {json.dumps(rtv_list[:3], ensure_ascii=False) if rtv_list else '无数据'}")
+
         else:
-              # -------- 其它消息类型 --------
-              self.log_signal.emit(f"[WS] 收到 {func} 消息")
-              self.log_signal.emit(f"[WS] 刷新数据")  
-              
+            # -------- 其它消息类型 --------
+            self.log_signal.emit(f"[WS] 收到 {func} 消息")
+            # self.log_signal.emit(f"[WS] 刷新数据")
+
     # ------------------------------------------------------------------
     # 控制接口
     # ------------------------------------------------------------------
@@ -182,15 +192,22 @@ class WebSocketWorker(QThread):
         """启动定时请求rtv的定时器"""
         if self.rtv_timer:
             self.rtv_timer.cancel()
-        
+
         async def _send_rtv_request():
             if self.websocket:
-                await self.websocket.send(json.dumps({
-                    "func": "rtv", 
-                    "ids": rtv_ids,
-                    "period": self.rtv_interval
-                }))
-        
+                try:
+                    # print(f"[DEBUG] 准备发送RTV请求: {json.dumps({'func': 'rtv', 'ids': rtv_ids[:5], 'period': self.rtv_interval})}")
+                    await self.websocket.send(json.dumps({
+                        "func": "rtv", 
+                        "ids": rtv_ids,
+                        "period": self.rtv_interval
+                    }))
+                    print(f"[DEBUG] 定时RTV请求已发送: {json.dumps({'func': 'rtv', 'ids': rtv_ids[:5], 'period': self.rtv_interval})}")
+                except Exception as e:
+                    print(f"[ERROR] 发送RTV请求失败: {e}")
+                finally:
+                    self._start_rtv_timer(rtv_ids)  # 重新启动定时器
+
         self.rtv_timer = self.loop.call_later(
             self.rtv_interval, 
             lambda: asyncio.create_task(_send_rtv_request())

@@ -111,13 +111,16 @@ class WebSocketClient(QMainWindow):
             # 返回QWidget
             return row_widget
 
+        # 从config.ini读取token
+        config_path = "f:\\360Downloads\\BaiduNetdiskDownload\\WicToolDemo\\getBY_EMS_Data\\LzhEmsAutoLogin\\config.ini"
+        from configparser import ConfigParser
+        config = ConfigParser()
+        config.read(config_path)
+        url = config.get('websocket', 'url')
+        token = url.split('?')[1] if '?' in url else ""
+
         self.token_input = QLineEdit()
-        self.token_input.setText(
-            "3665e026fe187313485d407bec2ca98b32c25a6507312e5b26ef3b5b529282c009e95ec7693b34f45988a86a3beb6b956ec05ba4789ea8c639dc24d8c8be3bb57e09c1d49d1680c7d2c061cec1cafa11"
-            # "480983708196ac1abd3315357f59cdc20d158972d5bf29c0ab28c0ee4b92d7e17ee991a6c5cb8458a2fb34a2d1a39a4f741e61c76e4aea9a6dad90ff74619f81253f194a0b093c323320a91c7ff7a3d8"
-            # "3d22c9d902d186e73c45998bd25c591a4d92ec0eb50951acc7878171a92ac09295d3540652fdcf0f44b828d9475e81bca5677687f2d9421d06632bd6cee25c81de3fa112ee3100ef84230ccf7b3824f3"
-            # "63f0efd89ab8b6ab850b71ea5ec30c9b89af7999fee2592ca5a30ca2f098f684ac720bef95d7b7332b7031be375548da233dfc0e1b07187101b3cf38d658ba99d25d20b07e60fb5a7ea90b9c52cb5faa"
-        )
+        self.token_input.setText(token)
         token_layout = QHBoxLayout()
         token_label = QLabel("Token:")
         token_label.setStyleSheet("color: #2196F3; font-weight: bold;")
