@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 
 # from mysql_storage import MySQLStorage
-from data_insert import save_realtime_data  # 调用数据存入方法模块
+from data_insert import save_realtime_data  # 调用数据库存入方法模块
 
 
 class WebSocketWorker(QThread):
@@ -35,7 +35,7 @@ class WebSocketWorker(QThread):
         self.token = token or "your-default-token-here"
         self.need_refresh = False
         self.loop = None
-        self.rtv_interval = 5  # 默认间隔5秒
+        self.rtv_interval = 10  # 默认间隔5秒
         self.rtv_timer = None
 
     # ------------------------------------------------------------------
@@ -105,57 +105,68 @@ class WebSocketWorker(QThread):
         except json.JSONDecodeError as err:
             self.log_signal.emit(f"[WS] JSON 解析失败: {err}")
             return
+        try:
+            # print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
+            raw = json.dumps(data, ensure_ascii=False)                      # 转json字符串  任意字符
+            print("len(json.dumps) =", len(raw))          
+            # 序列化后长度
+            print("前50 字:", raw[:50])                                 # 看最后 200 个字符
 
-        # print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
-        raw = json.dumps(data, ensure_ascii=False)                      # 不缩进
-        print("len(json.dumps) =", len(raw))          
-        # 序列化后长度
-        # print("尾 200 字:", raw[-200:])                                 # 看最后 200 个字符
+            # 3) 写入数据库（使用统一封装函数，直接传 dict）
+            ok = save_realtime_data(data)     #数据库模块
+            self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
 
-        # 3) 写入数据库（使用统一封装函数，直接传 dict）
-        ok = save_realtime_data(data)
-        self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
+            # 4) 广播给 UI #不管是啥数据，ui层自己分类，本模块也自己分类，用于获取和更新id清单
+            self.message_signal.emit(data)
 
-        # 4) 广播给 UI #不管是啥数据，ui层自己分类，本模块也自己分类，用于获取和更新id清单
-        self.message_signal.emit(data)
+            func = data.get("func")
+            if func == "menu":
+                print("收到menu数据")
+                # -------- menu 逻辑：取 rtv‑id，订阅实时值 --------
+                rtv_ids = [
+                      r["id"]
+                      for devs in data.get("data", {}).values()
+                      for dev in devs
+                      for r in dev.get("rtvList", [])
+                  ]
+                print(f"[DEBUG] 获取到的rtv_ids: {rtv_ids[:20]}")
+                sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
+                await self.websocket.send(json.dumps(sub_cmd))
+                print(f"[DEBUG] 首次RTV请求已发送: {json.dumps(sub_cmd)[:150]}")
+                self.log_signal.emit(f"[WS]已发送 rtv 订阅")
+                self._start_rtv_timer(rtv_ids)
 
-        func = data.get("func")
-        if func == "menu":
-            # -------- menu 逻辑：取 rtv‑id，订阅实时值 --------
-            rtv_ids = [
-                  r["id"]
-                  for devs in data.get("data", {}).values()
-                  for dev in devs
-                  for r in dev.get("rtvList", [])
-              ]
-            print(f"[DEBUG] 获取到的rtv_ids: {rtv_ids[:50]}")
-            sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
-            await self.websocket.send(json.dumps(sub_cmd))
-            print(f"[DEBUG] 首次RTV请求已发送: {json.dumps(sub_cmd)[:150]}")
-            self.log_signal.emit(f"[WS]已发送 rtv 订阅")
-            self._start_rtv_timer(rtv_ids)
+                dev_cnt = sum(len(devs) for devs in data["data"].values())
+                self.log_signal.emit(
+                      f"[WS] 收到menu订阅：设备 {dev_cnt} 个，字段 {len(rtv_ids)} 项 → 已发送 rtv 订阅"
+                  )
 
-            dev_cnt = sum(len(devs) for devs in data["data"].values())
-            self.log_signal.emit(
-                  f"[WS] 收到menu订阅：设备 {dev_cnt} 个，字段 {len(rtv_ids)} 项 → 已发送 rtv 订阅"
-              )
+            elif func == "rtv":
+                print("收到RTV数据")
+                # 修改为完整获取data内容
+                print(type(data))
+                rtvJsonStr = json.dumps(data, ensure_ascii=False)
+                print(f"RTV数据josnStr: {rtvJsonStr[:70]}")
+                rtvData = data.get("data", [])
+                
+                # print(f"RTV数据: {json.dumps(rtvData[:30], ensure_ascii=False)}")
+                field_cnt = len(rtvData)
+                # self.log_signal.emit(f"[WS] 收到 rtv订阅数据包")
+                self.log_signal.emit(f"[WS] 收到 rtv订阅数据包，字段数 {field_cnt}")
 
-        elif func == "rtv":
-            print("[DEBUG] RTV请求已返回：")
-            rtv_list = data.get("rtvList", [])
-            print(f"[DEBUG] RTV数据: {json.dumps(rtv_list[:30], ensure_ascii=False)}")
-            field_cnt = len(rtv_list)
-            self.log_signal.emit(f"[WS] 收到 rtv订阅数据包")
-            self.log_signal.emit(f"[WS] 收到 rtv订阅数据包，字段数 {field_cnt}")
+                # 添加调试日志确认rtv请求已发送
+                print(f"[DEBUG] RTV请求已处理，数据长度: {len(rtvData)}字段数量：{field_cnt}")
+                print(
+                    f"[DEBUG] RTV请求返回数据示例: {json.dumps(rtvData[:3], ensure_ascii=False) if rtvData else '无数据'}"
+                )
 
-            # 添加调试日志确认rtv请求已发送
-            print(f"[DEBUG] RTV请求已处理，数据长度: {len(rtv_list)}")
-            print(f"[DEBUG] RTV请求返回数据示例: {json.dumps(rtv_list[:3], ensure_ascii=False) if rtv_list else '无数据'}")
-
-        else:
-            # -------- 其它消息类型 --------
-            self.log_signal.emit(f"[WS] 收到 {func} 消息")
+            else:
+                # -------- 其它消息类型 --------
+                self.log_signal.emit(f"[WS] 收到 {func} 消息")
             # self.log_signal.emit(f"[WS] 刷新数据")
+        except Exception as e:
+            self.log_signal.emit(f"[WS] 消息处理失败: {e}")
+            print(e)
 
     # ------------------------------------------------------------------
     # 控制接口

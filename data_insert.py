@@ -38,7 +38,7 @@ def save_realtime_data(data: Dict[str, Any]) -> bool:
     # print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
     raw = json.dumps(data, ensure_ascii=False)                      # 不缩进
     # print("len(json.dumps) =", len(raw))                            # 序列化后长度
-    print("尾 200 字:", raw[-200:])    
+    print("尾50字:", raw[-50:])    
     if not data:
         return False
 
