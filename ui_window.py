@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QColor, QIcon, QFont, QIntValidator
 from PyQt5.QtCore import Qt, QTimer
+import os
 from emsContronl import ChargeDischargeController
 from connection import WebSocketWorker
 from data_processing import (
@@ -112,7 +113,9 @@ class WebSocketClient(QMainWindow):
             return row_widget
 
         # 从config.ini读取token
-        config_path = "f:\\360Downloads\\BaiduNetdiskDownload\\WicToolDemo\\getBY_EMS_Data\\LzhEmsAutoLogin\\config.ini"
+        # 原路径保留注释
+        # config_path = "f:\\360Downloads\\BaiduNetdiskDownload\\WicToolDemo\\getBY_EMS_Data\\LzhEmsAutoLogin\\config.ini"
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autoLoginLzhEms", "config.ini")
         from configparser import ConfigParser
         config = ConfigParser()
         config.read(config_path)

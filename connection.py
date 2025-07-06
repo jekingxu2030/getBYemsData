@@ -122,24 +122,29 @@ class WebSocketWorker(QThread):
             func = data.get("func")
             if func == "menu":
                 print("收到menu数据")
-                # -------- menu 逻辑：取 rtv‑id，订阅实时值 --------
-                rtv_ids = [
-                      r["id"]
-                      for devs in data.get("data", {}).values()
-                      for dev in devs
-                      for r in dev.get("rtvList", [])
-                  ]
-                print(f"[DEBUG] 获取到的rtv_ids: {rtv_ids[:20]}")
-                sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
-                await self.websocket.send(json.dumps(sub_cmd))
-                print(f"[DEBUG] 首次RTV请求已发送: {json.dumps(sub_cmd)[:150]}")
-                self.log_signal.emit(f"[WS]已发送 rtv 订阅")
-                self._start_rtv_timer(rtv_ids)
+                # -------- menu 逻辑：取 rtv‑id，订阅实时值 遍历获取全部数据id--------
+             
+                rtv_ids = []
+                for dev_list in data.get("data", {}).values():
+                  for dev in dev_list:
+                    for rtv in dev.get("rtvList", []):
+                        rtv_id = rtv.get("id")
+                        if isinstance(rtv_id, int):  # ✅ 只保留数字类型 ID
+                            rtv_ids.append(rtv_id)
+
+
+                print(f"[DEBUG] 获取到的menu_rtv_ids: {rtv_ids}")
 
                 dev_cnt = sum(len(devs) for devs in data["data"].values())
                 self.log_signal.emit(
                       f"[WS] 收到menu订阅：设备 {dev_cnt} 个，字段 {len(rtv_ids)} 项 → 已发送 rtv 订阅"
                   )
+                print(f" 收到menu订阅：设备 {dev_cnt} 个，字段 {len(rtv_ids)} 项")
+                sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
+                await self.websocket.send(json.dumps(sub_cmd))
+                print(f"[DEBUG] 首次RTV请求已发送: {json.dumps(sub_cmd)[:150]}")
+                self.log_signal.emit(f"[WS]已发送 rtv 订阅")
+                self._start_rtv_timer(rtv_ids)  
 
             elif func == "rtv":
                 print("收到RTV数据")
@@ -148,7 +153,7 @@ class WebSocketWorker(QThread):
                 rtvJsonStr = json.dumps(data, ensure_ascii=False)
                 print(f"RTV数据josnStr: {rtvJsonStr[:70]}")
                 rtvData = data.get("data", [])
-                
+
                 # print(f"RTV数据: {json.dumps(rtvData[:30], ensure_ascii=False)}")
                 field_cnt = len(rtvData)
                 # self.log_signal.emit(f"[WS] 收到 rtv订阅数据包")
