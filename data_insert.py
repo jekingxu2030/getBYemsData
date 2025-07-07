@@ -1,4 +1,3 @@
-
 #     except Exception as e:
 #         storage.connection.rollback()
 #         logger.error(f"[数据库] 插入失败: {e}", exc_info=True)
@@ -29,10 +28,11 @@ _last_insert_time: Optional[datetime] = None
 
 # 连接数据库
 storage = MySQLStorage(
-    host="localhost",
+    host="18.185.184.251",
+    # host="localhost",
     port=3306,
-    user="getBYemsData",
-    password="getBYemsData",
+    user="getbyemsdata",
+    password="getbyemsdata",
     db="getbyemsdata",
 )
 
@@ -111,22 +111,33 @@ def _sync_save_data(data: Dict[str, Any], timestamp: datetime) -> None:
 
     try:
         with storage.connection.cursor() as cur:
-            columns =  load_field_order()[3:]  # 跳过前3个，保留record_time及之后
+            columns =  load_field_order()[1:]  # 跳过前1个，保留record_time及之后
 
             placeholders = ", ".join(["%s"] * len(columns))
-            # sql = f"INSERT INTO ems_realtime_data ({', '.join(columns)}) VALUES ({placeholders})"
             sql = f"INSERT INTO device_data_summary ({', '.join([f'`{col}`' for col in columns])}) VALUES ({placeholders})"
 
+            # row_values = []
+            # for col in columns:
+            #     if col == "record_time":
+            #         value = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            #     elif col in ("device_tbl", "device_id"):
+            #         value = None  # 跳过这两个字段
+            #     else:
+            #         value = data.get(col, None)
+            #     row_values.append(value)
             row_values = []
             for col in columns:
                 if col == "record_time":
                     value = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-                elif col in ("device_tbl", "device_id"):
-                    value = None  # 跳过这两个字段
+                elif col == "productType":
+                    value = "215户外柜"
+                elif col == "projectName":
+                    value = "BY-P01"
                 else:
                     value = data.get(col, None)
                 row_values.append(value)
-
+                
+                
             logger.debug(f"[SQL构造] SQL语句: {sql[:5]}")
             # print(f"[SQL构造] SQL语句: {sql}")
             logger.debug(

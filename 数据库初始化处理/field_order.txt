@@ -1,6 +1,6 @@
 id
-device_tbl
-device_id
+productType
+projectName
 record_time
 413001051
 413001100
