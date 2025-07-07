@@ -13,7 +13,9 @@ import websockets
 from PyQt5.QtCore import QThread, pyqtSignal
 import os
 from datetime import datetime
-
+# 保存RTV数据到JSON文件
+# import os
+import time
 # from mysql_storage import MySQLStorage
 from data_insert import save_realtime_data  # 调用数据库存入方法模块
 
@@ -28,14 +30,14 @@ class WebSocketWorker(QThread):
     message_signal = pyqtSignal(dict)  # 传递业务数据
     log_signal = pyqtSignal(str)  # 传递日志字符串
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, interval_seconds: int = 10):
         super().__init__()
         self.is_running = True
         self.websocket = None
         self.token = token or "your-default-token-here"
         self.need_refresh = False
         self.loop = None
-        self.rtv_interval = 10  # 默认间隔5秒
+        self.rtv_interval = interval_seconds  # 使用传入的间隔时间
         self.rtv_timer = None
 
     # ------------------------------------------------------------------
@@ -100,7 +102,8 @@ class WebSocketWorker(QThread):
         # 2) 解析 JSON
         try:
             data = json.loads(msg)
-            print(f"[DEBUG] 首次请求Menu请求返回: {json.dumps(data, ensure_ascii=False)[:150]}")
+            print(f"收到-{type(data)}类数据")
+            print(f"[DEBUG]收到数据: {json.dumps(data, ensure_ascii=False)[:150]}")
             self.log_signal.emit(f"收到首次menu请求返回数据: {json.dumps(data, ensure_ascii=False)[:150]}")
         except json.JSONDecodeError as err:
             self.log_signal.emit(f"[WS] JSON 解析失败: {err}")
@@ -112,10 +115,6 @@ class WebSocketWorker(QThread):
             # 序列化后长度
             print("前50 字:", raw[:50])                                 # 看最后 200 个字符
 
-            # 3) 写入数据库（使用统一封装函数，直接传 dict）
-            ok = save_realtime_data(data)     #数据库模块
-            self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
-
             # 4) 广播给 UI #不管是啥数据，ui层自己分类，本模块也自己分类，用于获取和更新id清单
             self.message_signal.emit(data)
 
@@ -123,17 +122,16 @@ class WebSocketWorker(QThread):
             if func == "menu":
                 print("收到menu数据")
                 # -------- menu 逻辑：取 rtv‑id，订阅实时值 遍历获取全部数据id--------
-             
+
                 rtv_ids = []
                 for dev_list in data.get("data", {}).values():
-                  for dev in dev_list:
-                    for rtv in dev.get("rtvList", []):
-                        rtv_id = rtv.get("id")
-                        if isinstance(rtv_id, int):  # ✅ 只保留数字类型 ID
-                            rtv_ids.append(rtv_id)
+                    for dev in dev_list:
+                        for rtv in dev.get("rtvList", []):
+                            rtv_id = rtv.get("id")
+                            if isinstance(rtv_id, int):  # ✅ 只保留数字类型 ID
+                                rtv_ids.append(rtv_id)
 
-
-                print(f"[DEBUG] 获取到的menu_rtv_ids: {rtv_ids}")
+                print(f"[DEBUG] 获取到的menu_rtv_ids: {rtv_ids[:5]}")
 
                 dev_cnt = sum(len(devs) for devs in data["data"].values())
                 self.log_signal.emit(
@@ -147,9 +145,9 @@ class WebSocketWorker(QThread):
                 self._start_rtv_timer(rtv_ids)  
 
             elif func == "rtv":
-                print("收到RTV数据")
+                # print("收到RTV数据")
                 # 修改为完整获取data内容
-                print(type(data))
+
                 rtvJsonStr = json.dumps(data, ensure_ascii=False)
                 print(f"RTV数据josnStr: {rtvJsonStr[:70]}")
                 rtvData = data.get("data", [])
@@ -165,9 +163,29 @@ class WebSocketWorker(QThread):
                     f"[DEBUG] RTV请求返回数据示例: {json.dumps(rtvData[:3], ensure_ascii=False) if rtvData else '无数据'}"
                 )
 
+                # 3) 写入数据库（使用统一封装函数，直接传 dict）
+                print(f"[DEBUG] rtvData完整内容: {rtvData[:2]}")
+
+                ok =await save_realtime_data(
+                    rtvData, datetime.now(), self.rtv_interval
+                )  # 数据库模块
+                if ok == "skipped":
+                    self.log_signal.emit("[存库] 跳过: 时间间隔不足")
+                else:
+                    self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
+
+                # 保存rtv数据到文件
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                log_dir = os.path.join(os.path.dirname(__file__), "dataLog")
+                os.makedirs(log_dir, exist_ok=True)
+                log_file = os.path.join(log_dir, f"rtv_update_{timestamp}.json")
+                # with open(log_file, "w", encoding="utf-8") as f:
+                #     json.dump(rtvData, f, ensure_ascii=False, indent=2)
+                # print(f"[DEBUG] RTV数据已保存到: {log_file}")
+
             else:
                 # -------- 其它消息类型 --------
-                self.log_signal.emit(f"[WS] 收到 {func} 消息")
+                self.log_signal.emit(f"[WS] 收到其他 {func} 消息")
             # self.log_signal.emit(f"[WS] 刷新数据")
         except Exception as e:
             self.log_signal.emit(f"[WS] 消息处理失败: {e}")

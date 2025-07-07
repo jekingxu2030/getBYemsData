@@ -1,59 +1,148 @@
-"""
-data_insert.py
-==============
 
-数据写入 MySQL 的统一入口：
-    from data_insert import save_realtime_data
-    save_realtime_data(rtv_data)
-"""
+#     except Exception as e:
+#         storage.connection.rollback()
+#         logger.error(f"[数据库] 插入失败: {e}", exc_info=True)
+#         print(f"[数据库] 插入失败: {e}")
+#         raise
 
-from datetime import datetime
-from typing import Dict, Any
+
+# --------------------4.0------------------
+import asyncio
 import json
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
+import os
 from mysql_storage import MySQLStorage
 
+# 初始化日志器
+logger = logging.getLogger("EMS_DataInsert")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
 
-def _ensure_table(storage: MySQLStorage) -> None:
-    """若表不存在则自动创建"""
-    ddl = """
-    CREATE TABLE IF NOT EXISTS ems_realtime_data (
-        data_id   VARCHAR(64) NOT NULL,
-        value     JSON        NOT NULL,
-        timestamp DATETIME    NOT NULL,
-        PRIMARY KEY (data_id, timestamp)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """
-    with storage.connection.cursor() as cur:
-        cur.execute(ddl)
-    storage.connection.commit()
+# 全局上次插入时间
+_last_insert_time: Optional[datetime] = None
 
-storage = MySQLStorage() #保持数据库连接一直存在
+# 连接数据库
+storage = MySQLStorage(
+    host="localhost",
+    port=3306,
+    user="getBYemsData",
+    password="getBYemsData",
+    db="getbyemsdata",
+)
 
-def save_realtime_data(data: Dict[str, Any]) -> bool:
-    """
-    对外暴露的写库函数。返回 True/False 代表写入成功与否。
-    """
-    # print("insert收到完整JSON ↓")
-    # print(json.dumps(data, indent=2, ensure_ascii=False))
-    # print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
-    raw = json.dumps(data, ensure_ascii=False)                      # 不缩进
-    # print("len(json.dumps) =", len(raw))                            # 序列化后长度
-    print("尾50字:", raw[-50:])    
-    if not data:
+FIELD_ORDER_FILE = os.path.join(
+    os.path.dirname(__file__), "数据库初始化处理", "field_order.txt"
+)
+
+
+# 加载字段顺序列表
+def load_field_order() -> list:
+    if not os.path.exists(FIELD_ORDER_FILE):
+        logger.error(f"[字段顺序] 文件不存在: {FIELD_ORDER_FILE}")
+        raise FileNotFoundError(FIELD_ORDER_FILE)
+    with open(FIELD_ORDER_FILE, encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    logger.debug(f"[字段顺序] 加载字段 {len(lines)} 个")
+    return lines
+
+
+async def save_realtime_data(
+    rtv_data: list, timestamp: datetime, interval_seconds: int = 60
+) -> bool:
+    global _last_insert_time
+
+    logger.debug(
+        f"[入口] save_realtime_data 被调用，时间间隔限制: {interval_seconds}秒"
+    )
+    print(f"\n[入口] save_realtime_data 被调用，时间间隔限制: {interval_seconds}秒")
+
+    if not isinstance(rtv_data, list) or not rtv_data:
+        logger.warning("[数据校验] 传入数据为空或格式不正确，写入终止")
+        print("[数据校验] 传入数据为空或格式不正确，写入终止")
         return False
 
-    
-    _ensure_table(storage)  # 保证表存在
-    ok=1
-    # ok = storage.store_data(data)
-    # storage.close()  # 这里也可以不关，让上层决定
-    return ok
+    if _last_insert_time and (timestamp - _last_insert_time) < timedelta(
+        seconds=interval_seconds
+    ):
+        logger.info("[时间限制] 写入间隔不足，跳过此次写入")
+        print("[DEBUD] [时间限制] 写入间隔不足，跳过此次写入")
+        return "skipped"
+
+    try:
+        data_dict = {
+            item["id"]: item["value"]
+            for item in rtv_data
+            if "id" in item and "value" in item
+        }
+        await asyncio.get_event_loop().run_in_executor(
+            None, _sync_save_data, data_dict, timestamp
+        )
+        _last_insert_time = timestamp
+        logger.info("[完成] 数据写入成功")
+        print("[DEBUD] [完成] 数据写入成功")
+        return True
+    except Exception as e:
+        logger.error(f"[异常] 数据写入失败: {e}", exc_info=True)
+        print(f"\n[异常] 数据写入失败: {e}")
+        return False
 
 
-# --- 简单自测 ---
-if __name__ == "__main__":
-    demo = {
-        "1001": {"value": 23.5, "unit": "℃"},
-        "1002": {"value": 45.2, "unit": "%"},
-    }
-    print("写入结果:", save_realtime_data(demo))
+def _sync_save_data(data: Dict[str, Any], timestamp: datetime) -> None:
+    logger.debug("[数据库] 校验连接状态")
+    print("[DEBUD] [数据库] 校验连接状态")
+    if not storage.is_connected():
+        logger.warning("[数据库] 连接断开，尝试重新连接")
+        print("[DEBUD] [数据库] 连接断开，尝试重新连接")
+        storage.connect()
+        logger.info("[数据库] 重新连接成功")
+        print("[DEBUD] [数据库] 重新连接成功")
+
+    field_order = load_field_order()
+    if len(field_order) < 2:
+        logger.error("[字段顺序] 字段顺序列表过短，终止写入")
+        print("[DEBUD] [字段顺序] 字段顺序列表过短，终止写入")
+        raise RuntimeError("字段顺序太短，写入中止")
+
+    try:
+        with storage.connection.cursor() as cur:
+            columns =  load_field_order()[3:]  # 跳过前3个，保留record_time及之后
+
+            placeholders = ", ".join(["%s"] * len(columns))
+            # sql = f"INSERT INTO ems_realtime_data ({', '.join(columns)}) VALUES ({placeholders})"
+            sql = f"INSERT INTO device_data_summary ({', '.join([f'`{col}`' for col in columns])}) VALUES ({placeholders})"
+
+            row_values = []
+            for col in columns:
+                if col == "record_time":
+                    value = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                elif col in ("device_tbl", "device_id"):
+                    value = None  # 跳过这两个字段
+                else:
+                    value = data.get(col, None)
+                row_values.append(value)
+
+            logger.debug(f"[SQL构造] SQL语句: {sql[:5]}")
+            # print(f"[SQL构造] SQL语句: {sql}")
+            logger.debug(
+                f"[SQL构造] 参数示例: {row_values[:10]} ... 共 {len(row_values)} 个字段"
+            )
+            print(
+                f"[SQL构造] 参数示例: {row_values[:10]} ... 共 {len(row_values)} 个字段"
+            )
+
+            cur.execute(sql, row_values)
+            storage.connection.commit()
+            logger.info(f"[数据库] 成功插入 1 条宽表数据，字段数: {len(row_values)}")
+            print(f"\n[数据库] 成功插入 1 条宽表数据，字段数: {len(row_values)}")
+
+    except Exception as e:
+        storage.connection.rollback()
+        logger.error(f"[数据库] 插入失败: {e}", exc_info=True)
+        print(f"[数据库] 插入失败: {e}")
+        raise

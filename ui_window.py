@@ -154,7 +154,7 @@ class WebSocketClient(QMainWindow):
         # 新增间隔时间输入框
         self.interval_input = QLineEdit()
         self.interval_input.setValidator(QIntValidator(1, 3600))  # 1秒到1小时
-        self.interval_input.setText("5")  # 默认5秒
+        self.interval_input.setText("10")  # 默认5秒
 
         for box in [self.charging_time_input_start, self.charging_time_input_end,
                     self.discharging_time_input_start, self.discharging_time_input_end]:
@@ -192,9 +192,10 @@ class WebSocketClient(QMainWindow):
                                                   QLabel("放电SOC下限(%):"), self.discharging_soc_input))
         # 添加间隔时间输入框
         settings_layout.addWidget(styled_input("请求间隔时间(秒):", self.interval_input))
-
+        
+        # 保存间隔时间设置
+        self.interval_input.textChanged.connect(self._update_interval)
         left_layout.addWidget(settings_panel)
-
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setStyleSheet("QTextEdit { background-color: #f0f0f0; font-size: 12px; color: #333; border: 1px solid rgba(128, 128, 128, 0.1); border-radius: 5px; }")
@@ -264,12 +265,21 @@ class WebSocketClient(QMainWindow):
         """
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.log_text.append(f"{current_time} - {message}")
+        
+    def _update_interval(self):
+        """更新WebSocketWorker的间隔时间设置"""
+        if hasattr(self, 'ws_worker') and self.ws_worker:
+            interval = int(self.interval_input.text()) if self.interval_input.text() else 10
+            self.ws_worker.rtv_interval = interval
+            self.log(f"更新数据采集间隔时间为: {interval}秒")
 
     def start_websocket(self):
         # 获取输入框中的token
         token = self.token_input.text()
-        # 创建WebSocketWorker对象，传入token
-        self.ws_worker = WebSocketWorker(token)
+        # 获取间隔时间
+        interval = int(self.interval_input.text()) if self.interval_input.text() else 10
+        # 创建WebSocketWorker对象，传入token和间隔时间
+        self.ws_worker = WebSocketWorker(token, interval)
         # 将WebSocketWorker对象的message_signal信号连接到handle_message槽函数
         self.ws_worker.message_signal.connect(self.handle_message)
         # 将WebSocketWorker对象的log_signal信号连接到log槽函数
