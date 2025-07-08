@@ -105,8 +105,8 @@ class WebSocketWorker(QThread):
         try:
             data = json.loads(msg)
             print(f"\n收到-{type(data)}类数据")
-            print(f"\n[DEBUG]收到数据: {json.dumps(data, ensure_ascii=False)[:150]}")
-            self.log_signal.emit(f"收到首次menu请求返回数据: {json.dumps(data, ensure_ascii=False)[:150]}")
+            print(f"\n[DEBUG]收到订阅数据: {json.dumps(data, ensure_ascii=False)[:50]}")
+            self.log_signal.emit(f"收到订阅数据: {json.dumps(data, ensure_ascii=False)[:50]}")
         except json.JSONDecodeError as err:
             self.log_signal.emit(f"[WS] JSON 解析失败: {err}")
             return
@@ -134,7 +134,7 @@ class WebSocketWorker(QThread):
                             if isinstance(rtv_id, int):  # ✅ 只保留数字类型 ID
                                 rtv_ids.append(rtv_id)
 
-                print(f"\n[DEBUG] 获取到的menu_rtv_ids: {rtv_ids[:5]}")
+                print(f"\n[DEBUG] 获取到的menu_rtv_ids: {rtv_ids[:3]}")
 
                 dev_cnt = sum(len(devs) for devs in data["data"].values())
                 self.log_signal.emit(
@@ -143,7 +143,7 @@ class WebSocketWorker(QThread):
                 print(f"\n 收到menu订阅：设备 {dev_cnt} 个，字段 {len(rtv_ids)} 项")
                 sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
                 await self.websocket.send(json.dumps(sub_cmd))
-                print(f"\n[DEBUG] 首次RTV请求已发送: {json.dumps(sub_cmd)[:150]}")
+                print(f"\n[DEBUG]RTV已订阅: {json.dumps(sub_cmd)[:50]}")
                 self.log_signal.emit(f"[WS]已发送 rtv 订阅")
                 self._start_rtv_timer(rtv_ids)
                 time.sleep(1)  
@@ -153,7 +153,7 @@ class WebSocketWorker(QThread):
                 # 修改为完整获取data内容
 
                 rtvJsonStr = json.dumps(data, ensure_ascii=False)
-                print(f"\nRTV数据josnStr: {rtvJsonStr[:70]}")
+                # print(f"\nRTV数据josnStr: {rtvJsonStr[:70]}")
                 rtvData = data.get("data", [])
 
                 # print(f"RTV数据: {json.dumps(rtvData[:30], ensure_ascii=False)}")
@@ -162,13 +162,13 @@ class WebSocketWorker(QThread):
                 self.log_signal.emit(f"[WS] 收到 rtv订阅数据包，字段数 {field_cnt}")
 
                 # 添加调试日志确认rtv请求已发送
-                print(f"\n[DEBUG] RTV请求已处理，数据长度: {len(rtvData)}字段数量：{field_cnt}")
+                print(f"\n[DEBUG] RTV订阅数据长度: {len(rtvData)},字段数量：{field_cnt}")
                 print(
-                    f"[DEBUG] RTV请求返回数据示例: {json.dumps(rtvData[:3], ensure_ascii=False) if rtvData else '无数据'}"
+                    f"[DEBUG] RTV订阅数据示例: {json.dumps(rtvData[:3], ensure_ascii=False) if rtvData else '无数据'}"
                 )
 
                 # 3) 写入数据库（使用统一封装函数，直接传 dict）
-                print(f"\n[DEBUG] rtvData完整内容: {rtvData[:2]}")
+                # print(f"\n[DEBUG] rtvData完整内容: {rtvData[:2]}")
                 startTime = time.time()
                 
                 ok =await save_realtime_data(
