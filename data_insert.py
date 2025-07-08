@@ -29,15 +29,15 @@ _last_insert_time: Optional[datetime] = None
 
 # 连接数据库
 storage = MySQLStorage(
-    # host="18.185.184.251",
-    # user="getbyemsdata",
-    # password="getbyemsdata",
-    # db="getbyemsdata",
-    host="localhost",
+    host="18.185.184.251",
+    user="getbyemsdata",
+    password="getbyemsdata",
+    db="getbyemsdata",
+    # host="localhost",
     port=3306,
-    user="getBYemsData",
-    password="getBYemsData",
-    db="getBYemsData",
+    # user="getBYemsData",
+    # password="getBYemsData",
+    # db="getBYemsData",
 )
 
 FIELD_ORDER_FILE = os.path.join(
