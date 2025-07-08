@@ -217,3 +217,5 @@ def update_data_list_by_ids(data_list, rtv_ids, device_info, rtv_data, log):
                 data_list.addItem(entry)
 
     log(f"数据显示完成，共 {data_list.count()} 项")
+       # 自动清理日志，最多保留1000行
+ 

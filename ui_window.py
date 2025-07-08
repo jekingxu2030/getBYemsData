@@ -16,7 +16,7 @@ from data_processing import (
 )
 from datetime import datetime
 from data_processing import DataProcessor
-
+import gc
 
 class WebSocketClient(QMainWindow):
     """
@@ -192,7 +192,7 @@ class WebSocketClient(QMainWindow):
                                                   QLabel("放电SOC下限(%):"), self.discharging_soc_input))
         # 添加间隔时间输入框
         settings_layout.addWidget(styled_input("请求间隔时间(秒):", self.interval_input))
-        
+
         # 保存间隔时间设置
         self.interval_input.textChanged.connect(self._update_interval)
         left_layout.addWidget(settings_panel)
@@ -266,6 +266,13 @@ class WebSocketClient(QMainWindow):
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.log_text.append(f"{current_time} - {message}")
         
+        # 自动清理日志，最多保留1000行
+        if self.log_text.document().lineCount() > 10000:
+            cursor = self.log_text.textCursor()
+            cursor.movePosition(cursor.Start)
+            cursor.movePosition(cursor.Down, cursor.KeepAnchor, 100)
+            cursor.removeSelectedText()
+
     def _update_interval(self):
         """更新WebSocketWorker的间隔时间设置"""
         if hasattr(self, 'ws_worker') and self.ws_worker:
@@ -276,6 +283,9 @@ class WebSocketClient(QMainWindow):
     def start_websocket(self):
         # 获取输入框中的token
         token = self.token_input.text()
+        # 设置开始时间
+        startTime=datetime.now()
+
         # 获取间隔时间
         interval = int(self.interval_input.text()) if self.interval_input.text() else 10
         # 创建WebSocketWorker对象，传入token和间隔时间
@@ -291,6 +301,7 @@ class WebSocketClient(QMainWindow):
         self.disconnect_btn.setEnabled(True)
         self.refresh_btn.setEnabled(True)
         self.update_timer.start(1000)
+        
         self.log("WebSocket已开始连接")
         self.log("数据更新已开启")
 
@@ -308,7 +319,7 @@ class WebSocketClient(QMainWindow):
         # 设置刷新按钮为不可用状态
         self.refresh_btn.setEnabled(False)
         self.log("WebSocket连接已断开")
-
+        gc.collect()
     def handle_message(self, data):
         # 获取消息中的函数类型
         func_type = data.get('func')
@@ -385,6 +396,7 @@ class WebSocketClient(QMainWindow):
 
     # 重写closeEvent方法，当窗口关闭时调用
     def closeEvent(self, event):
+        gc.collect()
         # 停止websocket连接
         self.stop_websocket()
         # 接受关闭事件

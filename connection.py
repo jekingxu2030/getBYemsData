@@ -18,6 +18,7 @@ from datetime import datetime
 import time
 # from mysql_storage import MySQLStorage
 from data_insert import save_realtime_data  # 调用数据库存入方法模块
+import gc
 
 
 class WebSocketWorker(QThread):
@@ -39,6 +40,7 @@ class WebSocketWorker(QThread):
         self.loop = None
         self.rtv_interval = interval_seconds  # 使用传入的间隔时间
         self.rtv_timer = None
+        self.res_counts=0
 
     # ------------------------------------------------------------------
     # QThread 入口
@@ -108,6 +110,7 @@ class WebSocketWorker(QThread):
         except json.JSONDecodeError as err:
             self.log_signal.emit(f"[WS] JSON 解析失败: {err}")
             return
+            
         try:
             # print("len(str(data)) =", len(str(data)))                       # dict 转字符串后的长度
             raw = json.dumps(data, ensure_ascii=False)                      # 转json字符串  任意字符
@@ -142,7 +145,8 @@ class WebSocketWorker(QThread):
                 await self.websocket.send(json.dumps(sub_cmd))
                 print(f"\n[DEBUG] 首次RTV请求已发送: {json.dumps(sub_cmd)[:150]}")
                 self.log_signal.emit(f"[WS]已发送 rtv 订阅")
-                self._start_rtv_timer(rtv_ids)  
+                self._start_rtv_timer(rtv_ids)
+                time.sleep(1)  
 
             elif func == "rtv":
                 # print("收到RTV数据")
@@ -165,7 +169,8 @@ class WebSocketWorker(QThread):
 
                 # 3) 写入数据库（使用统一封装函数，直接传 dict）
                 print(f"\n[DEBUG] rtvData完整内容: {rtvData[:2]}")
-
+                startTime = time.time()
+                
                 ok =await save_realtime_data(
                     rtvData, datetime.now(), self.rtv_interval
                 )  # 数据库模块
@@ -173,7 +178,9 @@ class WebSocketWorker(QThread):
                     self.log_signal.emit("[存库] 跳过: 时间间隔不足")
                 else:
                     self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
-
+                endTime=time.time()
+                useTime=endTime-startTime
+                print(f"[DEBUG]写入数据库耗时：{useTime}")
                 # 保存rtv数据到文件
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 log_dir = os.path.join(os.path.dirname(__file__), "dataLog")
@@ -187,10 +194,17 @@ class WebSocketWorker(QThread):
                 # -------- 其它消息类型 --------
                 self.log_signal.emit(f"[WS] 收到其他 {func} 消息")
             # self.log_signal.emit(f"[WS] 刷新数据")
+            
+            if self.res_counts > 10000:
+               gc.collect()
+               self.res_counts=0
+            else:
+               self.res_counts+=1
+                     
         except Exception as e:
             self.log_signal.emit(f"[WS] 消息处理失败: {e}")
             print(e)
-
+        
     # ------------------------------------------------------------------
     # 控制接口
     # ------------------------------------------------------------------
@@ -234,9 +248,9 @@ class WebSocketWorker(QThread):
                     await self.websocket.send(json.dumps({
                         "func": "rtv", 
                         "ids": rtv_ids,
-                        "period": self.rtv_interval
+                        "period": self.rtv_interval/2
                     }))
-                    print(f"\n[DEBUG] 定时RTV请求已发送: {json.dumps({'func': 'rtv', 'ids': rtv_ids[:5], 'period': self.rtv_interval})}")
+                    print(f"\n[DEBUG] 定时RTV请求已发送: {json.dumps({'func': 'rtv', 'ids': rtv_ids[:5], 'period': self.rtv_interval/2})}")
                 except Exception as e:
                     print(f"\n[ERROR] 发送RTV请求失败: {e}")
                 finally:
