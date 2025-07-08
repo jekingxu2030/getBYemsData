@@ -41,6 +41,8 @@ class WebSocketWorker(QThread):
         self.rtv_interval = interval_seconds  # 使用传入的间隔时间
         self.rtv_timer = None
         self.res_counts=0
+        self.last_message_time = time.time()  # 记录最后收到消息的时间
+        self.timeout_threshold = 30  # 超时阈值(秒)
 
     # ------------------------------------------------------------------
     # QThread 入口
@@ -67,7 +69,7 @@ class WebSocketWorker(QThread):
                     uri,
                     extra_headers=headers,
                     ping_interval=60,
-                    ping_timeout=30,
+                    ping_timeout=45,
                     close_timeout=5,
                     max_queue=1024,
                 ) as ws:
@@ -87,12 +89,20 @@ class WebSocketWorker(QThread):
             except Exception as e:
                 self.log_signal.emit(f"[WS] 异常: {e}，3秒后重连")
                 await asyncio.sleep(3)
+                
+        # 检查是否超时
+        current_time = time.time()
+        if current_time - self.last_message_time > self.timeout_threshold:
+            self.log_signal.emit(f"[WS] 警告: 超过{self.timeout_threshold}秒未收到数据，可能连接异常")
 
     # ------------------------------------------------------------------
     # 处理每一条文本消息
     # ------------------------------------------------------------------
     async def _handle_message(self, msg: str):
         """保存 → 解析 → 入库 → UI → 如需再订阅"""
+        # 重置超时计时器
+        self.last_message_time = time.time()
+        
         # 1) 保存原始 JSON 到文件
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs("ws_json_dump", exist_ok=True)

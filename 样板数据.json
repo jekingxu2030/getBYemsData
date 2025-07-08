@@ -1,0 +1,225 @@
+{
+  "func": "menu",
+  "data":{
+  "d_air_condition": [
+    {
+      "id": 1,
+      "dispIdx": 1,
+      "chnName": "海悟空调",
+      "engName": "air-conditioning",
+      "tableId": 413,
+      "tableName": "d_air_condition",
+      "tableChnName": "空调定义表",
+      "tableEngName": "Air condition define",
+      "rtvList": [
+        {
+          "id": 413001051,
+          "tableId": 413,
+          "rowId": 1,
+          "fieldId": 413051,
+          "state": 0,
+          "tableName": "d_air_condition",
+          "fieldName": "rtv_dev_stat",
+          "fieldChnName": "设备运行状态",
+          "fieldEngName": "Device status",
+          "valueType": 5,
+          "dispType": 12,
+          "refXid": 26
+        },
+        {
+          "id": 413001100,
+          "tableId": 413,
+          "rowId": 1,
+          "fieldId": 413100,
+          "hisPeriod": 2,
+          "hisIdx": 80,
+          "state": 0,
+          "tableName": "d_air_condition",
+          "fieldName": "rtv_other",
+          "fieldChnName": "柜内温度（℃）",
+          "fieldEngName": "Air-conditioning Cabinet temperature（℃）",
+          "valueType": 7,
+          "dispType": 7
+        }
+      ]
+    }
+  ],
+  "d_pcs": [
+    {
+      "id": 1,
+      "dispIdx": 1,
+      "chnName": "PCS",
+      "engName": "PCS",
+      "tableId": 409,
+      "tableName": "d_pcs",
+      "tableChnName": "储能机定义表",
+      "tableEngName": "Energy storage define",
+      "rtvList": [
+        {
+          "id": 409001058,
+          "tableId": 409,
+          "rowId": 1,
+          "fieldId": 409058,
+          "hisPeriod": 2,
+          "hisIdx": 0,
+          "state": 0,
+          "tableName": "d_pcs",
+          "fieldName": "rtv_Uab",
+          "fieldChnName": "PCS AB线实时电压（V）",
+          "fieldEngName": "PCS Real time voltage of line AB (V)",
+          "valueType": 7,
+          "dispType": 7,
+          "refXid": 0
+        },
+        {
+          "id": 409001059,
+          "tableId": 409,
+          "rowId": 1,
+          "fieldId": 409059,
+          "hisPeriod": 2,
+          "hisIdx": 1,
+          "state": 0,
+          "tableName": "d_pcs",
+          "fieldName": "rtv_Ubc",
+          "fieldChnName": "PCS BC线实时电压（V）",
+          "fieldEngName": "PCS Real time voltage of line BC (V)",
+          "valueType": 7,
+          "dispType": 7,
+          "refXid": 0
+        }
+      ]
+    }
+  ],
+  "d_bms": [
+    {
+      "id": 1,
+      "dispIdx": 1,
+      "chnName": "BMS",
+      "engName": "BMS",
+      "tableId": 412,
+      "tableName": "d_bms",
+      "tableChnName": "电池管理系统定义表",
+      "tableEngName": "Battery manage system define",
+      "rtvList": [
+        {
+          "id": 412001051,
+          "tableId": 412,
+          "rowId": 1,
+          "fieldId": 412051,
+          "hisPeriod": 0,
+          "hisIdx": 0,
+          "state": 0,
+          "tableName": "d_bms",
+          "fieldName": "rtv_dev_stat",
+          "fieldChnName": "BMS 簇电池簇状态",
+          "fieldEngName": "BMS cluster  statious",
+          "valueType": 5,
+          "dispType": 12,
+          "refXid": 21
+        },
+        {
+          "id": 412001052,
+          "tableId": 412,
+          "rowId": 1,
+          "fieldId": 412052,
+          "hisPeriod": 2,
+          "hisIdx": 61,
+          "state": 0,
+          "tableName": "d_bms",
+          "fieldName": "rtv_volt",
+          "fieldChnName": "BMS 簇组电压（V）",
+          "fieldEngName": "BMS   Cluster voltage（V）",
+          "valueType": 7,
+          "dispType": 7,
+          "refXid": 0
+        }
+      ]
+    }
+  ],
+  "d_grid": [
+    {
+      "id": 1,
+      "dispIdx": 1,
+      "chnName": "安科瑞电表",
+      "engName": "meter",
+      "tableId": 411,
+      "tableName": "d_grid",
+      "tableChnName": "市电并网点定义表",
+      "tableEngName": "Grid define",
+      "rtvList": [
+        {
+          "id": 411001052,
+          "tableId": 411,
+          "rowId": 1,
+          "fieldId": 411052,
+          "hisPeriod": 2,
+          "hisIdx": 33,
+          "state": 0,
+          "tableName": "d_grid",
+          "fieldName": "rtv_Uab",
+          "fieldChnName": "安科瑞电表 AB线实时电压（V）",
+          "fieldEngName": "Real time voltage of phase AB(V)",
+          "valueType": 7,
+          "dispType": 7,
+          "refXid": 0
+        },
+        {
+          "id": 411001053,
+          "tableId": 411,
+          "rowId": 1,
+          "fieldId": 411053,
+          "hisPeriod": 2,
+          "hisIdx": 34,
+          "state": 0,
+          "tableName": "d_grid",
+          "fieldName": "rtv_Ubc",
+          "fieldChnName": "安科瑞电表 BC线实时电压（V）",
+          "fieldEngName": "Real time voltage of phase BC(V)",
+          "valueType": 7,
+          "dispType": 7,
+          "refXid": 0
+        }
+      ]
+    }
+  ]
+},
+"rtv_data":{
+  
+    "func": "rtv",
+    "data": [
+      {
+        "id": "411001052",
+        "value": "397.40000000000003"
+      },
+      {
+        "id": "411001055",
+        "value": "47.600000000000001"
+      },
+      {
+        "id": "411001056",
+        "value": "19.600000000000001"
+      },
+      {
+        "id": "411001057",
+        "value": "45.600000000000001"
+      },
+      {
+        "id": "411001061",
+        "value": "24"
+      },
+      {
+        "id": "411001069",
+        "value": "24.039999999999999"
+      },
+      {
+        "id": "411001108",
+        "value": "67"
+      },
+      {
+        "id": "411001104",
+        "value": "0.95400000000000007"
+      }
+    ]
+}
+
+}
