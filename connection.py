@@ -188,15 +188,16 @@ class WebSocketWorker(QThread):
                     self.log_signal.emit("[存库] 跳过: 时间间隔不足")
                 else:
                     self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
-                endTime=time.time()
-                useTime=endTime-startTime
-                print(f"[DEBUG]写入数据库耗时：{useTime}")
+                    endTime=time.time()
+                    useTime=endTime-startTime
+                    print(f"[DEBUG]写库耗时：{useTime}")
+
                 # 保存rtv数据到文件
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 log_dir = os.path.join(os.path.dirname(__file__), "dataLog")
                 os.makedirs(log_dir, exist_ok=True)
                 log_file = os.path.join(log_dir, f"rtv_update_{timestamp}.json")
-                # with open(log_file, "w", encoding="utf-8") as f:
+                # with open(log_file, "w", encoding="utf-8") as f:   //写出rtv数据到本地文件暂时注释
                 #     json.dump(rtvData, f, ensure_ascii=False, indent=2)
                 # print(f"\n[DEBUG] RTV数据已保存到: {log_file}")
 

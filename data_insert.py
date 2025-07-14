@@ -126,16 +126,7 @@ def _sync_save_data(data: Dict[str, Any], timestamp: datetime) -> None:
 
             placeholders = ", ".join(["%s"] * len(columns))
             sql = f"INSERT INTO device_data_summary ({', '.join([f'`{col}`' for col in columns])}) VALUES ({placeholders})"
-
-            # row_values = []
-            # for col in columns:
-            #     if col == "record_time":
-            #         value = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            #     elif col in ("device_tbl", "device_id"):
-            #         value = None  # 跳过这两个字段
-            #     else:
-            #         value = data.get(col, None)
-            #     row_values.append(value)
+ 
             row_values = []
             for col in columns:
                 if col == "record_time":
