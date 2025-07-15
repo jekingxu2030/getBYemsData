@@ -17,6 +17,8 @@ from data_processing import (
 from datetime import datetime
 from data_processing import DataProcessor
 import gc
+# 设置每小时自动更新token
+from PyQt5.QtCore import QTimer
 
 class WebSocketClient(QMainWindow):
     """
@@ -27,6 +29,13 @@ class WebSocketClient(QMainWindow):
     def __init__(self):
         # 初始化父类
         super().__init__()
+        # 首先初始化日志控件
+        self.log_text = QTextEdit(self)
+        self.log_text.setReadOnly(True)
+        # self.log_text.setStyleSheet("QTextEdit { background-color: #ffffff; border: 1px solid #ccc; border-radius: 3px; padding: 5px; }")
+        self.log_text.setStyleSheet("QTextEdit { background-color: #f0f0f0; font-size: 12px; color: #333; border: 1px solid rgba(128, 128, 128, 0.1); border-radius: 5px; }")
+        # 调试日志：确认log_text已初始化
+        print("log_text initialized successfully")
         # 初始化ws_worker
         self.ws_worker = None
         # 初始化device_info
@@ -39,15 +48,50 @@ class WebSocketClient(QMainWindow):
         # 初始化QTimer，并连接timeout信号到update_display槽函数
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_display)
-        # 启动定时器，每隔3秒触发一次timeout信号
+        # 移至initUI之后启动定时器
+
+        self.setWindowIcon(QIcon("./img/ems.png"))
+        self.initUI()
+
+        # 在UI初始化后启动定时器
         self.update_timer.start(3000)
 
         # 数据处理模块消息传递 - 只保留这一处初始化
         self.data_processor = DataProcessor()
         self.data_processor.db_log_signal.connect(self.log)
 
+        # 初始化token_input
+        self.token_input = QLineEdit()
+        self.update_token()
+
+        self.token_timer = QTimer(self)
+        self.token_timer.timeout.connect(self.update_token)
+        self.token_timer.start(3600000)  # 3600000毫秒 = 1小时
+
         self.setWindowIcon(QIcon("./img/ems.png"))
         self.initUI()
+
+        # 在UI初始化后创建数据处理器实例
+        self.data_processor = DataProcessor()
+        self.data_processor.db_log_signal.connect(self.log)
+
+        # 在UI初始化后创建控制器实例
+        self.controller = ChargeDischargeController(log_callback=self.log)
+
+        self.update_token()
+    def update_token(self):
+        """每小时更新一次token"""
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autoLoginLzhEms", "config.ini")
+            from configparser import ConfigParser
+            config = ConfigParser()
+            config.read(config_path)
+            url = config.get('websocket', 'url')
+            token = url.split('?')[1] if '?' in url else ""
+            self.token_input.setText(token)
+            self.log(f"[定时更新] Token已更新")
+        except Exception as e:
+            self.log(f"[定时更新] Token更新失败: {str(e)}")
 
     def initUI(self):
         """初始化界面布局和控件"""
@@ -74,10 +118,14 @@ class WebSocketClient(QMainWindow):
         )
         left_layout.addWidget(self.device_tree)
 
+   
         # 中部监控设置区域
         settings_panel = QWidget()
         settings_layout = QVBoxLayout(settings_panel)
         settings_panel.setStyleSheet("background-color: #f0f0f0; border: 1px solid rgba(128, 128, 128, 0.1); padding: 10px;")
+        
+             # // 添加日志显示区域到布局
+        left_layout.addWidget(self.log_text)
 
         # 定义一个函数，用于创建一个带有标签和输入框的行
         def styled_input(label_text, input_field):
@@ -112,9 +160,8 @@ class WebSocketClient(QMainWindow):
             # 返回QWidget
             return row_widget
 
-        # 从config.ini读取token
+        # 从config.ini读取token并设置定时更新
         # 原路径保留注释
-        # config_path = "f:\\360Downloads\\BaiduNetdiskDownload\\WicToolDemo\\getBY_EMS_Data\\LzhEmsAutoLogin\\config.ini"
         config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autoLoginLzhEms", "config.ini")
         from configparser import ConfigParser
         config = ConfigParser()
@@ -123,7 +170,13 @@ class WebSocketClient(QMainWindow):
         token = url.split('?')[1] if '?' in url else ""
 
         self.token_input = QLineEdit()
-        self.token_input.setText(token)
+        self.update_token()
+
+        # 设置每小时自动更新token
+        from PyQt5.QtCore import QTimer
+        self.token_timer = QTimer(self)
+        self.token_timer.timeout.connect(self.update_token)
+        self.token_timer.start(3600000)  # 3600000毫秒 = 1小时
         token_layout = QHBoxLayout()
         token_label = QLabel("Token:")
         token_label.setStyleSheet("color: #2196F3; font-weight: bold;")
@@ -196,10 +249,11 @@ class WebSocketClient(QMainWindow):
         # 保存间隔时间设置
         self.interval_input.textChanged.connect(self._update_interval)
         left_layout.addWidget(settings_panel)
-        self.log_text = QTextEdit()
-        self.log_text.setReadOnly(True)
-        self.log_text.setStyleSheet("QTextEdit { background-color: #f0f0f0; font-size: 12px; color: #333; border: 1px solid rgba(128, 128, 128, 0.1); border-radius: 5px; }")
-        left_layout.addWidget(self.log_text)
+        # 注释掉重复的日志窗口创建代码
+        # self.log_text = QTextEdit()
+        # self.log_text.setReadOnly(True)
+        # self.log_text.setStyleSheet("QTextEdit { background-color: #f0f0f0; font-size: 12px; color: #333; border: 1px solid rgba(128, 128, 128, 0.1); border-radius: 5px; }")
+        # left_layout.addWidget(self.log_text)
 
         self.connect_btn = QPushButton("连接WebSocket")
         self.disconnect_btn = QPushButton("断开连接")
@@ -263,9 +317,14 @@ class WebSocketClient(QMainWindow):
         参数：
         - message: 要记录的日志信息
         """
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # 确保log_text已初始化
+        if not hasattr(self, 'log_text'):
+            self.log_text = QTextEdit(self)
+            self.log_text.setReadOnly(True)
+            self.log_text.setStyleSheet("QTextEdit { background-color: #ffffff; border: 1px solid #ccc; border-radius: 3px; padding: 5px; }")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.log_text.append(f"{current_time} - {message}")
-        
+
         # 自动清理日志，最多保留1000行
         if self.log_text.document().lineCount() > 10000:
             cursor = self.log_text.textCursor()
@@ -301,9 +360,9 @@ class WebSocketClient(QMainWindow):
         self.disconnect_btn.setEnabled(True)
         self.refresh_btn.setEnabled(True)
         self.update_timer.start(1000)
-        
+
         self.log("WebSocket已开始连接")
-        self.log("数据更新已开启")
+        # self.log("数据更新已开启")
 
     def stop_websocket(self):
         # 停止更新定时器
@@ -403,3 +462,17 @@ class WebSocketClient(QMainWindow):
         event.accept()
         # 关闭窗口
         self.close()
+
+    def update_token(self):
+        """每小时更新一次token"""
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autoLoginLzhEms", "config.ini")
+            from configparser import ConfigParser
+            config = ConfigParser()
+            config.read(config_path)
+            url = config.get('websocket', 'url')
+            token = url.split('?')[1] if '?' in url else ""
+            self.token_input.setText(token)
+            self.log(f"[定时更新] Token已更新")
+        except Exception as e:
+            self.log(f"[定时更新] Token更新失败: {str(e)}")

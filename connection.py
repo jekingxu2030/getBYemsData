@@ -32,15 +32,17 @@ class WebSocketWorker(QThread):
     log_signal = pyqtSignal(str)  # 传递日志字符串
 
     def __init__(self, token: str, interval_seconds: int = 10):
-        super().__init__()
-        self.is_running = True
-        self.websocket = None
-        self.token = token or "your-default-token-here"
-        self.need_refresh = False
-        self.loop = None
+
+        # 初始化函数，传入token和间隔时间
+        super().__init__()  # 调用父类的初始化函数
+        self.is_running = True  # 设置运行状态为True
+        self.websocket = None  # 初始化websocket为None
+        self.token = token or "your-default-token-here"  # 设置token，如果没有传入token，则使用默认token
+        self.need_refresh = False  # 设置需要刷新为False
+        self.loop = None  # 初始化loop为None
         self.rtv_interval = interval_seconds  # 使用传入的间隔时间
-        self.rtv_timer = None
-        self.res_counts=0
+        self.rtv_timer = None  # 初始化rtv_timer为None
+        self.res_counts=0  # 初始化res_counts为0
         self.last_message_time = time.time()  # 记录最后收到消息的时间
         self.timeout_threshold = 30  # 超时阈值(秒)
 
@@ -114,7 +116,7 @@ class WebSocketWorker(QThread):
         # 2) 解析 JSON
         try:
             data = json.loads(msg)
-            print(f"\n收到-{type(data)}类数据")
+            # print(f"\n收到-{type(data)}类数据")
             print(f"\n[DEBUG]收到订阅数据: {json.dumps(data, ensure_ascii=False)[:50]}")
             self.log_signal.emit(f"收到订阅数据: {json.dumps(data, ensure_ascii=False)[:50]}")
         except json.JSONDecodeError as err:
