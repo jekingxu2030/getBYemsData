@@ -59,13 +59,15 @@ class WebSocketWorker(QThread):
     async def connect_websocket(self):
         """主协程：负责连接 + 消息循环 + 重连"""
         self.loop = asyncio.get_running_loop()  # 记录当前事件循环
-        uri = f"ws://ems.hy-power.net:8888/E6F7D5412A20?{self.token}"
+        # uri = f"ws://ems.hy-power.net:8888/E6F7D5412A20?{self.token}"
         headers = {
             "User-Agent": "Mozilla/5.0",
             "Origin": "http://ems.hy-power.net:8114",
         }
 
         while self.is_running:
+            # 每次循环重新构建uri，确保使用最新的token
+            uri = f"ws://ems.hy-power.net:8888/E6F7D5412A20?{self.token}"
             try:
                 async with websockets.connect(
                     uri,

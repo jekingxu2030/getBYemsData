@@ -89,6 +89,10 @@ class WebSocketClient(QMainWindow):
             url = config.get('websocket', 'url')
             token = url.split('?')[1] if '?' in url else ""
             self.token_input.setText(token)
+            # 同步更新WebSocketWorker的token
+            if hasattr(self, 'ws_worker') and self.ws_worker:
+                self.ws_worker.token = token
+                self.log(f"[定时更新] WebSocketWorker token已同步")
             self.log(f"[定时更新] Token已更新")
         except Exception as e:
             self.log(f"[定时更新] Token更新失败: {str(e)}")
