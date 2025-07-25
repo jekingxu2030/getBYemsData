@@ -62,7 +62,7 @@ async def save_realtime_data(
     global _last_insert_time
 
     logger.debug(
-        f"[入口] save_realtime_data 被调用，时间间隔限制: {interval_seconds}秒"
+        # f"[入口] save_realtime_data 被调用，时间间隔限制: {interval_seconds}秒"
     )
     # print(f"\n[入口] save_realtime_data 被调用，时间间隔限制: {interval_seconds}秒")
 
