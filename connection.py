@@ -119,8 +119,8 @@ class WebSocketWorker(QThread):
         try:
             data = json.loads(msg)
             # print(f"\n收到-{type(data)}类数据")
-            print(f"\n[DEBUG]收到订阅数据: {json.dumps(data, ensure_ascii=False)[:50]}")
-            self.log_signal.emit(f"收到订阅数据: {json.dumps(data, ensure_ascii=False)[:50]}")
+            print(f"\n[DEBUG]收到订阅数据: {json.dumps(data, ensure_ascii=False)[:70]}")
+            self.log_signal.emit(f"收到订阅数据: {json.dumps(data, ensure_ascii=False)[:60]}")
         except json.JSONDecodeError as err:
             self.log_signal.emit(f"[WS] JSON 解析失败: {err}")
             return
@@ -137,7 +137,7 @@ class WebSocketWorker(QThread):
 
             func = data.get("func")
             if func == "menu":
-                print("收到menu数据")
+                # print("收到menu数据")
                 # -------- menu 逻辑：取 rtv‑id，订阅实时值 遍历获取全部数据id--------
 
                 rtv_ids = []
@@ -157,8 +157,8 @@ class WebSocketWorker(QThread):
                 print(f"\n 收到menu订阅：设备 {dev_cnt} 个，字段 {len(rtv_ids)} 项")
                 sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": 5}
                 await self.websocket.send(json.dumps(sub_cmd))
-                print(f"\n[DEBUG]RTV已订阅: {json.dumps(sub_cmd)[:50]}")
-                self.log_signal.emit(f"[WS]已发送 rtv 订阅")
+                print(f"\n[DEBUG]RTV订阅已发送: {json.dumps(sub_cmd)[:50]}")
+                self.log_signal.emit(f"[WS]已发送rtv订阅")
                 self._start_rtv_timer(rtv_ids)
                 time.sleep(1)  
 
