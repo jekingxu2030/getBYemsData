@@ -64,7 +64,7 @@ class WebSocketWorker(QThread):
             "User-Agent": "Mozilla/5.0",
             "Origin": "http://ems.hy-power.net:8114",
         }
-
+        print(f"[WS] 连接所用Token: {self.token}")
         while self.is_running:
             # 每次循环重新构建uri，确保使用最新的token
             uri = f"ws://ems.hy-power.net:8888/E6F7D5412A20?{self.token}"
