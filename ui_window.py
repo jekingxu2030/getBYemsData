@@ -224,7 +224,7 @@ class WebSocketClient(QMainWindow):
         # 新增间隔时间输入框
         self.interval_input = QLineEdit()
         self.interval_input.setValidator(QIntValidator(1, 3600))  # 1秒到1小时
-        self.interval_input.setText("20")  # 默认5秒
+        self.interval_input.setText("0")  # 默认0秒，表示使用系统默认值
 
         for box in [self.charging_time_input_start, self.charging_time_input_end,
                     self.discharging_time_input_start, self.discharging_time_input_end]:
@@ -348,7 +348,15 @@ class WebSocketClient(QMainWindow):
     def _update_interval(self):
         """更新WebSocketWorker的间隔时间设置"""
         if hasattr(self, 'ws_worker') and self.ws_worker:
-            interval = int(self.interval_input.text()) if self.interval_input.text() else 10
+            try:
+                interval_text = self.interval_input.text().strip()
+                if interval_text and int(interval_text) > 0:
+                    interval = int(interval_text)
+                else:
+                    interval = 0  # 默认值
+            except ValueError:
+                interval = 1  # 默认值
+            
             self.ws_worker.rtv_interval = interval
             self.log(f"更新数据采集间隔时间为: {interval}秒")
 
@@ -358,8 +366,19 @@ class WebSocketClient(QMainWindow):
         # 设置开始时间
         startTime=datetime.now()
 
-        # 获取间隔时间
-        interval = int(self.interval_input.text()) if self.interval_input.text() else 10
+        # 获取间隔时间 - 读取窗口文本，如果没有值则使用默认值10
+        try:
+            interval_text = self.interval_input.text().strip()
+            if interval_text and int(interval_text) > 0:
+                interval = int(interval_text)
+            else:
+                interval = 0  # 默认值
+                self.log("使用默认间隔时间: 10秒")
+        except ValueError:
+            interval = 1  # 默认值
+            self.log("间隔时间格式错误，使用默认值: 10秒")
+        
+        self.log(f"设置数据采集间隔时间为: {interval}秒")
         # 创建WebSocketWorker对象，传入token和间隔时间
         self.ws_worker = WebSocketWorker(token, interval)
         # 将WebSocketWorker对象的message_signal信号连接到handle_message槽函数
