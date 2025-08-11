@@ -230,8 +230,11 @@ class WebSocketClient(QMainWindow):
                     self.discharging_time_input_start, self.discharging_time_input_end]:
             box.setValidator(QIntValidator(0, 23))
 
-        for box in [self.charging_soc_input, self.discharging_soc_input]:
-            box.setValidator(QIntValidator(0, 100))
+        # 配置重订阅间隔输入框（原充电SOC上限输入框）
+        self.charging_soc_input.setValidator(QIntValidator(0, 10))  # 重订阅间隔时间(秒)，0-10秒
+        self.charging_soc_input.setText("0")  # 默认值设为0（立即重订阅）
+        
+        self.discharging_soc_input.setValidator(QIntValidator(0, 100))  # 保持放电SOC下限为百分比
 
         # 定义一个函数，用于创建一个包含两个标签和两个输入框的行
         def double_input_row(label1, input1, label2, input2):
@@ -258,7 +261,7 @@ class WebSocketClient(QMainWindow):
                                                   QLabel("充电结束时间(HH):"), self.charging_time_input_end))
         settings_layout.addWidget(double_input_row(QLabel("放电开始时间(HH):"), self.discharging_time_input_start,
                                                   QLabel("放电结束时间(HH):"), self.discharging_time_input_end))
-        settings_layout.addWidget(double_input_row(QLabel("充电SOC上限(%):"), self.charging_soc_input,
+        settings_layout.addWidget(double_input_row(QLabel("重订阅间隔(秒):"), self.charging_soc_input,
                                                   QLabel("放电SOC下限(%):"), self.discharging_soc_input))
         # 添加间隔时间输入框
         settings_layout.addWidget(styled_input("请求间隔时间(秒):", self.interval_input))
@@ -381,6 +384,9 @@ class WebSocketClient(QMainWindow):
         self.log(f"设置数据采集间隔时间为: {interval}秒")
         # 创建WebSocketWorker对象，传入token和间隔时间
         self.ws_worker = WebSocketWorker(token, interval)
+        # 设置SOC输入框引用到connection.py用于重订阅间隔
+        if hasattr(self.ws_worker, 'set_soc_input'):
+            self.ws_worker.set_soc_input(self.charging_soc_input)
         # 将WebSocketWorker对象的message_signal信号连接到handle_message槽函数
         self.ws_worker.message_signal.connect(self.handle_message)
         # 将WebSocketWorker对象的log_signal信号连接到log槽函数

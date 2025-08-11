@@ -51,8 +51,32 @@ class WebSocketWorker(QThread):
         self.rtv_ids_cache = []  # 缓存RTV ID列表用于重订阅
         self.last_rtv_subscribe_time = 0  # 最后发送RTV订阅的时间
 
+        # 数据完整性统计和重订阅
+        self.data_stats = {
+            'total_messages': 0,
+            'complete_messages': 0,
+            'partial_messages': 0,
+            'last_complete_time': 0
+        }
+
+        # 立即重订阅配置
+        self.soc_resubscribe_interval = 30  # 默认SOC重订阅间隔(秒)
+
+        # SOC输入框引用（从UI获取）
+        self.soc_input_reference = None  # 将在外部设置
+
         # 连接状态标志
         self.is_connected = False  # WebSocket连接成功标志，初始为False
+
+    def set_soc_input_reference(self, soc_input_widget):
+        """设置SOC输入框引用"""
+        self.soc_input_reference = soc_input_widget
+        self.log_signal.emit("[重订阅] SOC输入框引用已设置")
+
+        # 智能缓存合并机制
+        self.data_cache = {}  # 缓存不完整数据 {rtv_id: value}
+        self.cache_threshold = 0.5  # 50%订阅量触发写库
+        self.cache_hits = 0  # 缓存命中统计
 
     # ------------------------------------------------------------------
     # QThread 入口
@@ -79,13 +103,11 @@ class WebSocketWorker(QThread):
                 async with websockets.connect(
                     uri,
                     extra_headers=headers,
-                    ping_interval=60,
-                    ping_timeout=55,
-                    close_timeout=5,
-                    open_timeout=5,
-                    timeout=60,
-                    max_size=2**23,  # 8MiB
-                    max_queue=1024,
+                    ping_interval=60,      # 心跳间隔60秒
+                    ping_timeout=55,       # 心跳超时55秒
+                    close_timeout=5,       # 关闭超时5秒
+                    max_queue=1024,        # 消息队列最大1024条
+                    compression="deflate",  # 启用压缩减少网络传输量
                 ) as ws:
                     self.websocket = ws
                     self.is_connected = True  # 设置连接成功标志
@@ -100,30 +122,6 @@ class WebSocketWorker(QThread):
                         self.log_signal.emit(f"[WS] 收到 {len(msg)} 字节")
                         if isinstance(msg, str) and msg:
                             await self._handle_message(msg)
-
-                    # # 在消息循环中添加超时检测 ---开始---
-                    # current_time = time.time()
-                    # if self.last_rtv_subscribe_time > 0:  # 已发送过RTV订阅
-                    #     if current_time - self.last_rtv_subscribe_time > self.rtv_interval:
-                    #         self.rtv_timeout_count += 1
-                    #         self.log_signal.emit(f"[WS] RTV订阅超时 {self.rtv_timeout_count}/{self.max_rtv_timeout}")
-
-                    #         # 超时3次后重发订阅
-                    #         if self.rtv_timeout_count >= self.max_rtv_timeout and self.rtv_ids_cache:
-                    #             self.log_signal.emit("[WS] 连续超时3次，重新发送RTV订阅...")
-                    #             try:
-                    #                 resub_cmd = {"func": "rtv", "ids": self.rtv_ids_cache, "period": self.rtv_interval}
-                    #                 print(f"\n[DEBUG] 首次订阅参数配置指令: {json.dumps(resub_cmd)}")
-                    #                 await self.websocket.send(json.dumps(resub_cmd))
-                    #                 self.log_signal.emit("[WS] RTV重订阅已发送")
-                    #                 self.last_rtv_subscribe_time = time.time()
-                    #                 self.rtv_timeout_count = 0
-                    #             except Exception as e:
-                    #                 self.log_signal.emit(f"[WS] 重订阅失败: {e}")
-
-                    #         # 更新最后订阅时间，避免重复计数
-                    #         self.last_rtv_subscribe_time = current_time
-                    # # 超时检测逻辑 ---结束---
 
             except Exception as e:
                 self.is_connected = False  # 连接失败，复位连接标志
@@ -197,8 +195,16 @@ class WebSocketWorker(QThread):
                     print("rtv_ids为空，不订阅")
                 else:
                     # 首次发送订阅
-                    sub_cmd = {"func": "rtv", "ids": rtv_ids, "period": self.rtv_interval}
-                    sub_cmd_Debug = {"func": "rtv", "ids": len(rtv_ids), "period": 0}
+                    sub_cmd = {
+                        "func": "rtv",
+                        "ids": rtv_ids,
+                        "period": self.get_soc_resubscribe_interval(),
+                    }
+                    sub_cmd_Debug = {
+                        "func": "rtv",
+                        "ids": len(rtv_ids),
+                        "period": self.get_soc_resubscribe_interval(),
+                    }
                     await self.websocket.send(json.dumps(sub_cmd))
                     print(f"\n[DEBUG]首次RTV订阅已发送: {json.dumps(sub_cmd_Debug)}")
                     self.log_signal.emit(f"[WS]已发送首次rtv订阅，频率: {self.rtv_interval}秒")
@@ -218,32 +224,66 @@ class WebSocketWorker(QThread):
 
                 # 修改为完整获取data内容
                 rtvJsonStr = json.dumps(data, ensure_ascii=False)
-                # print(f"\nRTV数据josnStr: {rtvJsonStr[:70]}")
                 rtvData = data.get("data", [])
 
-                # print(f"RTV数据: {json.dumps(rtvData[:30], ensure_ascii=False)}")
                 field_cnt = len(rtvData)
+                self.data_stats['total_messages'] += 1
+
+                # 获取预期数据量
+                expected_count = len(self.rtv_ids_cache) if hasattr(self, 'rtv_ids_cache') and self.rtv_ids_cache else 159
+
+                # 数据统计和完整性判断 - 立即重订阅逻辑
+                completeness_ratio = field_cnt / expected_count if expected_count > 0 else 0
+                is_complete = completeness_ratio >= 0.8  # 80%以上认为完整
+                if is_complete:
+                    self.data_stats['complete_messages'] += 1
+                    self.data_stats['last_complete_time'] = time.time()
+                else:
+                    self.data_stats['partial_messages'] += 1
+
+                # 日志输出
                 self.log_signal.emit(f"[WS] 收到 rtv订阅数据包，字段数 {field_cnt}")
+                print(f"\n[DEBUG] RTV订阅到数据长度: {field_cnt},字段数量：{field_cnt}")
+                print(f"[DEBUG] 数据完整性统计: 完整{self.data_stats['complete_messages']}, 部分{self.data_stats['partial_messages']}, 总计{self.data_stats['total_messages']}")
+                # print(f"[DEBUG] 连续不完整次数: {self.data_stats['consecutive_incomplete']}/{self.incomplete_threshold}")  # 已废弃
 
-                # 添加调试日志确认rtv请求已发送
-                print(f"\n[DEBUG] RTV订阅数据长度: {len(rtvData)},字段数量：{field_cnt}")
-                print(
-                    f"[DEBUG] RTV订阅到数据: {json.dumps(rtvData[:3], ensure_ascii=False) if rtvData else '无数据'}"
-                )
+                # ===== 立即重订阅机制 =====
+                if not is_complete:
+                    completeness_ratio = field_cnt / expected_count
+                    print(f"[WARNING] 数据不完整: 收到{field_cnt}条，期望{expected_count}条，比例{completeness_ratio:.1%}")
+                    self.log_signal.emit(f"[WS] 警告: 数据不完整({field_cnt}/{expected_count})，立即重订阅...")
 
-                # 3) 写入数据库（使用统一封装函数，直接传 dict）
-                # print(f"\n[DEBUG] rtvData完整内容: {rtvData[:2]}")
+                    # 立即触发重订阅，无需等待连续次数
+                    if self.rtv_ids_cache:
+                        resub_interval = self.get_soc_resubscribe_interval()
+                        print(f"[INFO] 立即重订阅，间隔: {resub_interval}秒")
+
+                        try:
+                            resub_cmd = {
+                                "func": "rtv",
+                                "ids": self.rtv_ids_cache,
+                                "period": resub_interval,
+                            }
+                            await self.websocket.send(json.dumps(resub_cmd))
+                            self.log_signal.emit(f"[WS] 立即重订阅已发送，SOC间隔: {resub_interval}秒")
+                            self.last_rtv_subscribe_time = time.time()
+                        except Exception as e:
+                            self.log_signal.emit(f"[WS] 立即重订阅失败: {e}")
+
+                    # 数据量过少时跳过处理
+                    if field_cnt < 5:
+                        return
+
+                # 3) 写入数据库
                 startTime = time.time()
+                ok = await save_realtime_data(rtvData, datetime.now(), self.rtv_interval)
 
-                ok =await save_realtime_data(   #调用写库函数
-                    rtvData, datetime.now(), self.rtv_interval
-                )  # 数据库模块
                 if ok == "skipped":
                     self.log_signal.emit("[存库] 跳过: 时间间隔不足")
                 else:
                     self.log_signal.emit("[存库] 写库" + ("成功" if ok else "失败"))
-                    endTime=time.time()
-                    useTime=endTime-startTime
+                    endTime = time.time()
+                    useTime = endTime - startTime
                     print(f"[DEBUG]写库耗时：{useTime}")
 
                 # 保存rtv数据到文件
@@ -272,7 +312,11 @@ class WebSocketWorker(QThread):
                     if self.rtv_timeout_count >= self.max_rtv_timeout and self.rtv_ids_cache:
                         self.log_signal.emit("[WS] 连续超时3次，重新发送RTV订阅...")
                         try:
-                            resub_cmd = {"func": "rtv", "ids": self.rtv_ids_cache, "period": 0} #订阅间隔默认都按正常访问是的0
+                            resub_cmd = {
+                                "func": "rtv",
+                                "ids": self.rtv_ids_cache,
+                                "period": self.get_soc_resubscribe_interval(),
+                            }  # 订阅间隔默认都按正常访问是的0
                             print(f"\n[DEBUG] 重订阅参数配置指令: {json.dumps(resub_cmd)}")
                             await self.websocket.send(json.dumps(resub_cmd))
                             self.log_signal.emit("[WS] RTV重订阅已发送")
@@ -303,6 +347,39 @@ class WebSocketWorker(QThread):
         """外部调用，触发下次循环发送 menu"""
         self.need_refresh = True
 
+    def set_soc_input(self, soc_input):
+        """设置SOC输入框引用，用于获取重订阅间隔"""
+        self.soc_input_reference = soc_input
+
+    def get_soc_resubscribe_interval(self):
+        """从重订阅间隔输入框获取间隔值"""
+        try:
+            if self.soc_input_reference and hasattr(self.soc_input_reference, 'text'):
+                value = int(self.soc_input_reference.text())
+                return max(0, min(10, value))  # 限制在0-10秒之间，0表示立即
+        except (ValueError, AttributeError):
+            pass
+        return 0  # 默认使用0秒（立即重订阅）
+
+    # def should_resubscribe_by_incompleteness(self):
+    #     """已废弃：原基于连续不完整次数的重订阅判断"""
+    #     return False
+
+    def get_data_stats(self):
+        """获取数据完整性统计信息"""
+        if self.data_stats['total_messages'] == 0:
+            return "暂无数据"
+
+        complete_rate = (self.data_stats['complete_messages'] / self.data_stats['total_messages']) * 100
+        return {
+            'total': self.data_stats['total_messages'],
+            'complete': self.data_stats['complete_messages'],
+            'partial': self.data_stats['partial_messages'],
+            'complete_rate': f"{complete_rate:.1f}%",
+            'last_complete': time.strftime('%H:%M:%S', time.localtime(self.data_stats['last_complete_time']))
+                if self.data_stats['last_complete_time'] else "从未"
+        }
+
     def send_cmd(self, cmd_id, ref_fid, ref_rid, value):
         """在主线程调用：向设备下发命令"""
         if not self.websocket or not self.loop:
@@ -323,31 +400,5 @@ class WebSocketWorker(QThread):
         asyncio.run_coroutine_threadsafe(_do_send(), self.loop)
 
     def _start_rtv_timer(self, rtv_ids):
-        """启动定时请求rtv的定时器 - 已废弃，使用智能重订阅机制"""
-        """
-        原有的定时重发机制已注释掉
-        现在使用基于超时检测的智能重订阅机制
-        
-        if self.rtv_timer:
-            self.rtv_timer.cancel()
 
-        async def _send_rtv_request():
-            if self.websocket:
-                try:
-                    await self.websocket.send(json.dumps({
-                        "func": "rtv", 
-                        "ids": rtv_ids,
-                        "period": self.rtv_interval/2
-                    }))
-                    print(f"\n[DEBUG] 定时RTV请求已发送: {json.dumps({'func': 'rtv', 'ids': rtv_ids[:5], 'period': self.rtv_interval/2})}")
-                except Exception as e:
-                    print(f"\n[ERROR] 发送RTV请求失败: {e}")
-                finally:
-                    self._start_rtv_timer(rtv_ids)  # 重新启动定时器
-
-        self.rtv_timer = self.loop.call_later(
-            self.rtv_interval, 
-            lambda: asyncio.create_task(_send_rtv_request())
-        )
-        """
         pass  # 方法已废弃，保留空实现
