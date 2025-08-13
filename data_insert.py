@@ -77,17 +77,17 @@ data_cache_manager = DataCacheManager()
 
 # 连接数据库
 storage = MySQLStorage(
-    # host="18.185.184.251",
-    # user="getbyemsdata",
-    # password="getbyemsdata",
-    # db="getbyemsdata",
+    host="18.185.184.251",
+    user="getbyemsdata",
+    password="getbyemsdata",
+    db="getbyemsdata",
     port=3306,
     
     # 本地数据库账户名不一样
-    host="localhost",
-    user="getBYemsData",
-    password="getBYemsData",
-    db="getBYemsData",
+    # host="localhost",
+    # user="getBYemsData",
+    # password="getBYemsData",
+    # db="getBYemsData",
 )
 
 FIELD_ORDER_FILE = os.path.join(
