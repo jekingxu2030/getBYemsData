@@ -276,7 +276,10 @@ class WebSocketWorker(QThread):
 
                 # 3) 写入数据库
                 startTime = time.time()
-                ok = await save_realtime_data(rtvData, datetime.now(), self.rtv_interval)
+                # 修正：使用荷兰时间而不是本地系统时间
+                from data_insert import netherlands_time
+                netherlands_timestamp = netherlands_time.get_netherlands_time()
+                ok = await save_realtime_data(rtvData, netherlands_timestamp, self.rtv_interval)
 
                 if ok == "skipped":
                     self.log_signal.emit("[存库] 跳过: 时间间隔不足")
