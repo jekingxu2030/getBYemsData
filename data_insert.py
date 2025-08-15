@@ -306,7 +306,9 @@ import os
 # 在文件开头添加配置读取
 config = configparser.ConfigParser()
 config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
-config.read(config_path, encoding='utf-8')
+# 使用with语句确保文件正确关闭
+with open(config_path, 'r', encoding='utf-8') as f:
+    config.read_file(f)
 
 # 修正：荷兰时间同步模块 - 使用配置文件偏移值
 class NetherlandsTimeSync:

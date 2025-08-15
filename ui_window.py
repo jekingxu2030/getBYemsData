@@ -83,7 +83,9 @@ class WebSocketClient(QMainWindow):
             config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autoLoginLzhEms", "config.ini")
             from configparser import ConfigParser
             config = ConfigParser()
-            config.read(config_path)
+            # 使用with语句确保文件正确关闭
+            with open(config_path, 'r') as f:
+                config.read_file(f)
             url = config.get('websocket', 'url')
             token = url.split('?')[1] if '?' in url else ""
             self.token_input.setText(token)
@@ -102,7 +104,9 @@ class WebSocketClient(QMainWindow):
             config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autoLoginLzhEms", "config.ini")
             from configparser import ConfigParser
             config = ConfigParser()
-            config.read(config_path)
+            # 使用with语句确保文件正确关闭
+            with open(config_path, 'r') as f:
+                config.read_file(f)
             url = config.get('websocket', 'url')
             token = url.split('?')[1] if '?' in url else ""
             self.token_input.setText(token)
@@ -182,7 +186,9 @@ class WebSocketClient(QMainWindow):
         config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autoLoginLzhEms", "config.ini")
         from configparser import ConfigParser
         config = ConfigParser()
-        config.read(config_path)
+        # 使用with语句确保文件正确关闭
+        with open(config_path, 'r') as f:
+            config.read_file(f)
         url = config.get('websocket', 'url')
         token = url.split('?')[1] if '?' in url else ""
         self.token_input = QLineEdit()
