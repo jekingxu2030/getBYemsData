@@ -4,12 +4,16 @@
 # mysql_storage.py
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 import pymysql
 from pymysql.cursors import DictCursor
 from PyQt5.QtCore import QObject, pyqtSignal
+
+# 导入荷兰时间同步器
+from time_sync import netherlands_time
+
 
 
 class MySQLStorage(QObject):
@@ -123,8 +127,8 @@ class MySQLStorage(QObject):
             with self.connection.cursor() as cursor:
                 sql = (
                     "INSERT INTO ems_realtime_data "
-                    "(data_id, value, timestamp) "
-                    "VALUES (%(id)s, %(value)s, %(timestamp)s)"
+                    "(data_id, value, timestamp, netherlands_timestamp) "
+                    "VALUES (%(id)s, %(value)s, %(timestamp)s, %(netherlands_timestamp)s)"
                 )
                 batch = []
                 for k, v in data.items():
@@ -135,10 +139,16 @@ class MySQLStorage(QObject):
                         timestamp_str = (ts or datetime.now()).strftime(
                             "%Y-%m-%d %H:%M:%S"
                         )
+                    # 获取荷兰时间
+                    netherlands_now = netherlands_time.get_netherlands_time()
+                    netherlands_timestamp_str = netherlands_now.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                     item = {
                         "id": k,
                         "value": json.dumps(v, ensure_ascii=False),
                         "timestamp": timestamp_str,
+                        "netherlands_timestamp": netherlands_timestamp_str,
                     }
                     batch.append(item)
 

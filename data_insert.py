@@ -77,17 +77,19 @@ data_cache_manager = DataCacheManager()
 
 # 连接数据库
 storage = MySQLStorage(
-    host="18.185.184.251",
-    user="getbyemsdata",
-    password="getbyemsdata",
-    db="getbyemsdata",
+    # host="18.185.184.251",
+    # user="getbyemsdata",
+    # password="getbyemsdata",
+    # db="getbyemsdata",
+    
+    # 共用
     port=3306,
     
     # 本地数据库账户名不一样
-    # host="localhost",
-    # user="getBYemsData",
-    # password="getBYemsData",
-    # db="getBYemsData",
+    host="localhost",
+    user="getBYemsData",
+    password="getBYemsData",
+    db="getBYemsData",
 )
 
 FIELD_ORDER_FILE = os.path.join(
@@ -260,10 +262,26 @@ def _sync_save_data(data: Dict[str, Any], timestamp: datetime) -> None:
 
     # 使用荷兰时间格式化时间字符串
     record_time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    # 计算荷兰时间的毫秒时间戳
+    # 步骤1: 获取荷兰时间(无时区)
+    # 步骤2: 计算该时间相对于UTC的偏移量(荷兰夏令时为UTC+2，冬令时为UTC+1)
+    # 步骤3: 将荷兰时间转换为UTC时间
+    # 步骤4: 计算UTC时间的毫秒时间戳
+    # 注意：这里假设系统时间是准确的，并且荷兰时间偏移量已正确设置
+    netherlands_timestamp = int(timestamp.timestamp() * 1000)
+    # 添加额外的调试信息，验证时间戳计算的准确性
+    utc_time = datetime.utcfromtimestamp(netherlands_timestamp / 1000)
+    logger.debug(f"[时间转换] 荷兰时间: {record_time_str}")
+    logger.debug(f"[时间转换] 毫秒时间戳: {netherlands_timestamp}")
+    logger.debug(f"[时间转换] 对应的UTC时间: {utc_time.strftime('%Y-%m-%d %H:%M:%S')}")
     
     try:
         with storage.connection.cursor() as cur:
-            columns =  load_field_order()[1:]  # 跳过前1个，保留record_time及之后
+            # 加载字段顺序并添加netherlands_timestamp字段
+            columns = load_field_order()[1:].copy()  # 跳过前1个，保留record_time及之后
+            if 'netherlands_timestamp' not in columns:
+                columns.append('netherlands_timestamp')
+                logger.debug("[字段处理] 已添加netherlands_timestamp字段")
 
             placeholders = ", ".join(["%s"] * len(columns))
             sql = f"INSERT INTO device_data_summary ({', '.join([f'`{col}`' for col in columns])}) VALUES ({placeholders})"
@@ -271,7 +289,13 @@ def _sync_save_data(data: Dict[str, Any], timestamp: datetime) -> None:
             row_values = []
             for col in columns:
                 if col == "record_time":
+                    # 保持原有格式不变
                     value = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                #     logger.debug(f"[时间转换] 使用荷兰时间字符串: {value}")    #此处可以开启追加一个时间戳字段
+                # elif col == "netherlands_timestamp":
+                #     # 使用毫秒时间戳
+                #     value = netherlands_timestamp
+                    logger.debug(f"[时间转换] 使用荷兰时间毫秒时间戳: {value}")
                 elif col == "productType":
                     value = "215户外柜"
                 elif col == "projectName":
@@ -310,65 +334,5 @@ config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
 with open(config_path, 'r', encoding='utf-8') as f:
     config.read_file(f)
 
-# 修正：荷兰时间同步模块 - 使用配置文件偏移值
-class NetherlandsTimeSync:
-    """荷兰时间同步器 - 优先使用配置文件偏移值，API作为备选"""
-    
-    def __init__(self):
-        self.time_offset = None  # 偏移量（秒）
-        self.use_api = config.getboolean('time', 'enable_api_time_sync', fallback=False)
-        self.offset_hours = config.getfloat('time', 'netherlands_offset_hours', fallback=-6.0)
-        
-    def sync_time_once(self) -> bool:
-        """同步时间 - 优先使用配置文件，API作为备选"""
-        try:
-            if not self.use_api:
-                # 使用配置文件中的固定偏移值
-                self.time_offset = self.offset_hours * 3600  # 转换为秒
-                logger.info(f"[时间同步] 使用配置文件偏移值: {self.offset_hours}小时 ({self.time_offset/3600:.1f}小时)")
-                return True
-                
-            # API方式（保留作为备选）
-            logger.info("[时间同步] 尝试API获取荷兰时间...")
-            response = requests.get("https://worldtimeapi.org/api/timezone/Europe/Amsterdam", timeout=5)
-            response.raise_for_status()
-            
-            data = response.json()
-            netherlands_datetime_str = data["datetime"]
-            netherlands_dt = datetime.fromisoformat(netherlands_datetime_str)
-            netherlands_naive = netherlands_dt.replace(tzinfo=None)
-            
-            local_now = datetime.now()
-            self.time_offset = (netherlands_naive - local_now).total_seconds()
-            
-            logger.info(f"[时间同步] API获取成功，偏移量: {self.time_offset/3600:.1f}小时")
-            return True
-            
-        except Exception as e:
-            # API失败时使用配置文件偏移值
-            logger.warning(f"[时间同步] API失败，使用配置文件偏移值: {e}")
-            self.time_offset = self.offset_hours * 3600
-            logger.info(f"[时间同步] 使用配置文件偏移值: {self.offset_hours}小时")
-            return False
-    
-    def get_netherlands_time(self) -> datetime:
-        """获取当前荷兰时间"""
-        if self.time_offset is None:
-            self.sync_time_once()
-        
-        # 基于配置文件的偏移量计算荷兰时间
-        local_now = datetime.now()
-        netherlands_now = local_now + timedelta(seconds=self.time_offset or 0)
-        
-        # 添加调试打印，验证时间计算
-        print(f"[时间调试] 本地时间: {local_now.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"[时间调试] 偏移值: {self.time_offset/3600:.1f}小时")
-        print(f"[时间调试] 荷兰时间: {netherlands_now.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        return netherlands_now
-
-# 创建荷兰时间同步器实例
-netherlands_time = NetherlandsTimeSync()
-
-# 启动时同步时间
-netherlands_time.sync_time_once()
+# 从time_sync模块导入荷兰时间同步器实例
+from time_sync import netherlands_time
