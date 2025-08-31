@@ -6,6 +6,8 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any
+import configparser
+import os
 
 import pymysql
 from pymysql.cursors import DictCursor
@@ -13,7 +15,6 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 # 导入荷兰时间同步器
 from time_sync import netherlands_time
-
 
 
 class MySQLStorage(QObject):
@@ -41,11 +42,7 @@ class MySQLStorage(QObject):
     # ---------- 初始化 ----------
     def __init__(
         self,
-        host: str = "localhost",
-        port: int = 3306,
-        user: str = "getBYemsData",
-        password: str = "getBYemsData",
-        db: str = "getBYemsData",
+        config_file: str = "config.ini",
         charset: str = "utf8mb4",
         reconnect_retry: int = 3,  # ping 失败后的自动重连次数
     ):
@@ -53,17 +50,27 @@ class MySQLStorage(QObject):
             return
         super().__init__()
 
+        # 先初始化logger，避免在_load_config中使用未初始化的logger
+        self._init_logger()
+        
+        # 从配置文件读取数据库配置
+        self.config = self._load_config(config_file)
+        
         # 基本连接参数
-        self.host = host
-        self.port = int(port)
-        self.user = user
-        self.password = password
-        self.db = db
+        self.host = self.config.get("host", "localhost")
+        self.port = int(self.config.get("port", 3306))
+        self.user = self.config.get("user", "getBYemsData")
+        self.password = self.config.get("password", "getBYemsData")
+        self.db = self.config.get("db", "getBYemsData")
         self.charset = charset
         self._reconnect_retry = reconnect_retry
         self.connection = None
 
-        # 配置 logger（仅一次）
+        self.connect()
+        MySQLStorage._is_init = True
+
+    def _init_logger(self):
+        """初始化日志记录器"""
         self.logger = logging.getLogger("EMS_MySQL")
         if not self.logger.handlers:
             handler = logging.StreamHandler()
@@ -74,8 +81,44 @@ class MySQLStorage(QObject):
             self.logger.setLevel(logging.INFO)
             self.logger.propagate = False
 
-        self.connect()
-        MySQLStorage._is_init = True
+    def _load_config(self, config_file: str) -> Dict[str, str]:
+        """从配置文件加载数据库配置"""
+        config = configparser.ConfigParser()
+        config_path = os.path.join(os.path.dirname(__file__), config_file)
+        
+        # 默认配置
+        default_config = {
+            "host": "localhost",
+            "port": "3306",
+            "user": "getBYemsData",
+            "password": "getBYemsData",
+            "db": "getBYemsData"
+        }
+        
+        try:
+            if os.path.exists(config_path):
+                config.read(config_path, encoding='utf-8')
+                
+                # 从database section读取配置
+                if 'database' in config:
+                    db_config = dict(config['database'])
+                    # 清理引号和逗号
+                    for key, value in db_config.items():
+                        db_config[key] = value.strip('"\'').rstrip(',')
+                    
+                    # 合并默认配置
+                    default_config.update(db_config)
+                    self.logger.info(f"成功从 {config_file} 加载数据库配置")
+                else:
+                    self.logger.warning(f"配置文件 {config_file} 中未找到 [database] 部分，使用默认配置")
+            else:
+                self.logger.warning(f"配置文件 {config_file} 不存在，使用默认配置")
+                
+        except Exception as e:
+            # 使用print作为备选，因为此时logger可能有问题
+            print(f"读取配置文件失败: {e}，使用默认配置")
+            
+        return default_config
 
     # ---------- 连接 ----------
     def connect(self) -> None:
@@ -115,8 +158,7 @@ class MySQLStorage(QObject):
                     return True
             return False
 
-  
-    #         return False
+    # ---------- 存储数据 ----------
     def store_data(self, data: Dict[str, Any]) -> bool:
 
         if not self.is_connected():
@@ -165,8 +207,6 @@ class MySQLStorage(QObject):
             self.logger.error(msg)
             self.log_signal.emit(msg)
             return False
-
-    # ---------- 刷新 ----------
 
     # ---------- 关闭 ----------
     def close(self) -> None:

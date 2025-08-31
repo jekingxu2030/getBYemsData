@@ -76,21 +76,25 @@ class DataCacheManager:
 data_cache_manager = DataCacheManager()
 
 # 连接数据库
-storage = MySQLStorage(
-    # host="18.185.184.251",
-    # user="getbyemsdata",
-    # password="getbyemsdata",
-    # db="getbyemsdata",
-    
-    # 共用
-    port=3306,
-    
-    # 本地数据库账户名不一样
-    host="localhost",
-    user="getBYemsData",
-    password="getBYemsData",
-    db="getBYemsData",
-)
+# 从config.ini自动读取数据库配置，无需手动指定参数
+storage = MySQLStorage()
+
+# 保留原来的注释作为参考（已注释掉）
+# storage = MySQLStorage(
+#     # host="18.185.184.251",
+#     # user="getbyemsdata",
+#     # password="getbyemsdata",
+#     # db="getbyemsdata",
+#     
+#     # 共用
+#     port=3306,
+#     
+#     # 本地数据库账户名不一样
+#     host="localhost",
+#     user="getBYemsData",
+#     password="getBYemsData",
+#     db="getBYemsData",
+# )
 
 FIELD_ORDER_FILE = os.path.join(
     os.path.dirname(__file__), "数据库初始化处理", "field_order.txt"
@@ -254,7 +258,7 @@ def _sync_save_data(data: Dict[str, Any], timestamp: datetime) -> None:
     if not field_order:
         logger.error("[字段顺序] 字段顺序未加载或为空，终止写入")
         return
-    
+
     if len(field_order) < 2:
         logger.error("[字段顺序] 字段顺序列表过短，终止写入")
         # print("[DEBUD] [字段顺序] 字段顺序列表过短，终止写入")
@@ -274,40 +278,40 @@ def _sync_save_data(data: Dict[str, Any], timestamp: datetime) -> None:
     logger.debug(f"[时间转换] 荷兰时间: {record_time_str}")
     logger.debug(f"[时间转换] 毫秒时间戳: {netherlands_timestamp}")
     logger.debug(f"[时间转换] 对应的UTC时间: {utc_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     try:
         with storage.connection.cursor() as cur:
             # 加载字段顺序并添加netherlands_timestamp字段
             columns = load_field_order()[1:].copy()  # 跳过前1个，保留record_time及之后
-            if 'netherlands_timestamp' not in columns:
-                columns.append('netherlands_timestamp')
-                logger.debug("[字段处理] 已添加netherlands_timestamp字段")
+            # if 'netherlands_timestamp' not in columns:
+            #     columns.append('netherlands_timestamp')
+            #     logger.debug("[字段处理] 已添加netherlands_timestamp字段")
 
             placeholders = ", ".join(["%s"] * len(columns))
             sql = f"INSERT INTO device_data_summary ({', '.join([f'`{col}`' for col in columns])}) VALUES ({placeholders})"
- 
+
             row_values = []
             for col in columns:
                 if col == "record_time":
                     # 保持原有格式不变
                     value = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-                #     logger.debug(f"[时间转换] 使用荷兰时间字符串: {value}")    #此处可以开启追加一个时间戳字段
-                # elif col == "netherlands_timestamp":
-                #     # 使用毫秒时间戳
-                #     value = netherlands_timestamp
+                    #     logger.debug(f"[时间转换] 使用荷兰时间字符串: {value}")    #此处可以开启追加一个时间戳字段
+                    # elif col == "netherlands_timestamp":
+                    #     # 使用毫秒时间戳
+                    #     value = netherlands_timestamp
                     logger.debug(f"[时间转换] 使用荷兰时间毫秒时间戳: {value}")
                 elif col == "productType":
                     value = "215户外柜"
                 elif col == "projectName":
-                    value = "BY-P01"
+                    value = "BY-P01-E6F7D5412A20"
                 else:
                     value = data.get(col, None)
                 row_values.append(value)
-            
+
             # === 简化的数据包信息打印 ===
             print(f"\n[数据写入] 荷兰时间: {timestamp.strftime('%Y-%m-%d %H:%M:%S')} | 字段数: {len(row_values)}")
             # =========================
-                
+
             logger.debug(f"[SQL构造] SQL语句: {sql[:5]}")
             logger.debug(
                 f"[SQL构造] 参数示例: {row_values[:10]} ... 共 {len(row_values)} 个字段"
