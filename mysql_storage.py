@@ -134,13 +134,15 @@ class MySQLStorage(QObject):
                 charset=self.charset,
                 cursorclass=DictCursor,
             )
-            msg = "MySQL 数据库连接成功"
+            msg = f"MySQL 数据库连接成功 - 服务器: {self.host}:{self.port}, 数据库: {self.db}, 用户: {self.user}"
             self.logger.info(msg)
             self.log_signal.emit(msg)
+            print(msg)  # 同时输出到控制台
         except Exception as e:
-            msg = f"MySQL 数据库连接失败: {e}"
+            msg = f"MySQL 数据库连接失败 - 服务器: {self.host}:{self.port}, 数据库: {self.db}, 用户: {self.user}, 错误: {e}"
             self.logger.error(msg)
             self.log_signal.emit(msg)
+            print(msg)  # 同时输出到控制台
             self.connection = None
 
     # ---------- 连接检查 ----------
