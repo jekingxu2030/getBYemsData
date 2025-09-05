@@ -1,5 +1,3 @@
-
-
 # ===========================================
 # mysql_storage.py
 import json
@@ -52,10 +50,10 @@ class MySQLStorage(QObject):
 
         # 先初始化logger，避免在_load_config中使用未初始化的logger
         self._init_logger()
-        
+
         # 从配置文件读取数据库配置
         self.config = self._load_config(config_file)
-        
+
         # 基本连接参数
         self.host = self.config.get("host", "localhost")
         self.port = int(self.config.get("port", 3306))
@@ -85,27 +83,31 @@ class MySQLStorage(QObject):
         """从配置文件加载数据库配置"""
         config = configparser.ConfigParser()
         config_path = os.path.join(os.path.dirname(__file__), config_file)
-        
+
         # 默认配置
         default_config = {
-            "host": "localhost",
+            # "host": "localhost",
+            "host": "3.76.79.249",
             "port": "3306",
-            "user": "getBYemsData",
-            "password": "getBYemsData",
-            "db": "getBYemsData"
+            # "user": "getBYemsData",
+            # "password": "getBYemsData",
+            # "db": "getBYemsData",
+            "user": "getbyemsData",
+            "password": "getbyemsData",
+            "db": "getbyemsData",
         }
-        
+
         try:
             if os.path.exists(config_path):
                 config.read(config_path, encoding='utf-8')
-                
+
                 # 从database section读取配置
                 if 'database' in config:
                     db_config = dict(config['database'])
                     # 清理引号和逗号
                     for key, value in db_config.items():
                         db_config[key] = value.strip('"\'').rstrip(',')
-                    
+
                     # 合并默认配置
                     default_config.update(db_config)
                     self.logger.info(f"成功从 {config_file} 加载数据库配置")
@@ -113,11 +115,11 @@ class MySQLStorage(QObject):
                     self.logger.warning(f"配置文件 {config_file} 中未找到 [database] 部分，使用默认配置")
             else:
                 self.logger.warning(f"配置文件 {config_file} 不存在，使用默认配置")
-                
+
         except Exception as e:
             # 使用print作为备选，因为此时logger可能有问题
             print(f"读取配置文件失败: {e}，使用默认配置")
-            
+
         return default_config
 
     # ---------- 连接 ----------
@@ -132,7 +134,7 @@ class MySQLStorage(QObject):
                 password=self.password,
                 db=self.db,
                 charset=self.charset,
-                cursorclass=DictCursor,
+                cursorclass=DictCursor
             )
             msg = f"MySQL 数据库连接成功 - 服务器: {self.host}:{self.port}, 数据库: {self.db}, 用户: {self.user}"
             self.logger.info(msg)
